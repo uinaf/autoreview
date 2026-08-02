@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,13 +13,20 @@ import (
 	"github.com/uinaf/autoreview/internal/protocol"
 )
 
-func flagOutput(arguments []string, stdout, stderr io.Writer) io.Writer {
-	for _, argument := range arguments {
-		if argument == "-h" || argument == "--help" {
-			return stdout
+func parseFlags(flags *flag.FlagSet, arguments []string, stdout, stderr io.Writer) error {
+	var diagnostics bytes.Buffer
+	flags.SetOutput(&diagnostics)
+	err := flags.Parse(arguments)
+	output := stderr
+	if errors.Is(err, flag.ErrHelp) {
+		output = stdout
+	}
+	if diagnostics.Len() > 0 {
+		if _, writeErr := io.Copy(output, &diagnostics); writeErr != nil {
+			return fmt.Errorf("write flag diagnostics: %w", writeErr)
 		}
 	}
-	return stderr
+	return err
 }
 
 type configFlagValues struct {

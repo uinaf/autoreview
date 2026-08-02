@@ -159,17 +159,43 @@ func failureReport(class protocol.FailureClass, message string, reviewedTarget *
 }
 
 func providerFailure(err error, number int, durationMS int64) (protocol.FailureClass, *protocol.Attempt) {
-	class := classify(err)
+	class := classifyReviewError(err)
 	var failure *provider.Error
-	if !errors.As(err, &failure) || failure.Attempt == nil {
-		return class, nil
+	if errors.As(err, &failure) {
+		if failure.Attempt == nil {
+			if class == protocol.FailureProtocol {
+				attempt := malformedAttempt(number, durationMS)
+				return class, &attempt
+			}
+			return class, nil
+		}
+		attempt := normalizeAttempt(*failure.Attempt, number, durationMS)
+		if attempt.Outcome == protocol.AttemptValid {
+			attempt.Outcome = protocol.AttemptFailed
+		}
+		attempt.ErrorClass = classPointer(class)
+		return class, &attempt
 	}
-	attempt := normalizeAttempt(*failure.Attempt, number, durationMS)
-	if attempt.Outcome == protocol.AttemptValid {
-		attempt.Outcome = protocol.AttemptFailed
+	outcome := protocol.AttemptFailed
+	if class == protocol.FailureProtocol {
+		outcome = protocol.AttemptMalformed
 	}
-	attempt.ErrorClass = classPointer(class)
+	attempt := protocol.Attempt{Number: number, Outcome: outcome, DurationMS: durationMS, ErrorClass: classPointer(class)}
 	return class, &attempt
+}
+
+func classifyReviewError(err error) protocol.FailureClass {
+	var failure *provider.Error
+	if errors.As(err, &failure) {
+		return failure.Class
+	}
+	if errors.Is(err, context.Canceled) {
+		return protocol.FailureCancelled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return protocol.FailureTimeout
+	}
+	return protocol.FailureProvider
 }
 
 func normalizeAttempt(attempt protocol.Attempt, number int, fallbackDurationMS int64) protocol.Attempt {

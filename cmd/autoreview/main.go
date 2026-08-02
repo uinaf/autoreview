@@ -57,11 +57,10 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer, depe
 
 func runConfig(ctx context.Context, arguments []string, stdout, stderr io.Writer, dependencies dependencies) int {
 	flags := flag.NewFlagSet("autoreview config", flag.ContinueOnError)
-	flags.SetOutput(flagOutput(arguments, stdout, stderr))
 	repository := flags.String("repository", ".", "Git repository or path within it")
 	configFlags := bindConfigFlags(flags)
 	jsonOutput := flags.Bool("json", false, "print effective config as JSON")
-	if err := flags.Parse(arguments); err != nil {
+	if err := parseFlags(flags, arguments, stdout, stderr); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}

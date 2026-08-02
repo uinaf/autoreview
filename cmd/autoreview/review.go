@@ -26,7 +26,6 @@ func (values *stringList) Set(value string) error {
 
 func runReview(ctx context.Context, arguments []string, stdout, stderr io.Writer, dependencies dependencies) int {
 	flags := flag.NewFlagSet("autoreview review", flag.ContinueOnError)
-	flags.SetOutput(flagOutput(arguments, stdout, stderr))
 	repository := flags.String("repository", ".", "Git repository or path within it")
 	mode := flags.String("mode", "", "target mode: local, branch, or commit")
 	base := flags.String("base", "", "base revision for branch mode")
@@ -36,7 +35,7 @@ func runReview(ctx context.Context, arguments []string, stdout, stderr io.Writer
 	flags.Var(&contextFiles, "context-file", "repository-relative context file (repeatable)")
 	output := flags.String("output", "terminal", "output format: terminal or json")
 	configFlags := bindConfigFlags(flags)
-	if err := flags.Parse(arguments); err != nil {
+	if err := parseFlags(flags, arguments, stdout, stderr); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}

@@ -103,6 +103,25 @@ func TestReviewCommandRetriesOnlyProtocolFailures(t *testing.T) {
 	}
 }
 
+func TestReviewCommandClassifiesPlainReviewerError(t *testing.T) {
+	t.Parallel()
+
+	repository := reviewRepository(t)
+	reviewer := &scriptedReviewer{results: []reviewStep{{err: errors.New("unwrapped reviewer failure")}, {result: cleanResult()}}}
+	var stdout bytes.Buffer
+	exit := run(t.Context(), []string{"review", "--repository", repository, "--mode", "local", "--engine", "codex", "--retries", "1", "--output", "json"}, &stdout, io.Discard, reviewDependencies(t, cleanScanner{}, reviewer))
+	if exit != 2 || len(reviewer.prompts) != 1 {
+		t.Fatalf("exit=%d calls=%d output=%s", exit, len(reviewer.prompts), stdout.String())
+	}
+	var result protocol.Report
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Failure == nil || result.Failure.Class != protocol.FailureProvider || len(result.Metadata.Attempts) != 1 || result.Metadata.Attempts[0].Outcome != protocol.AttemptFailed {
+		t.Fatalf("result=%+v", result)
+	}
+}
+
 func TestReviewCommandRejectsInvalidFindingBoundaries(t *testing.T) {
 	t.Parallel()
 
@@ -205,6 +224,17 @@ func TestTopLevelAndReviewHelp(t *testing.T) {
 	stdout.Reset()
 	if exit := run(t.Context(), []string{"review", "--help"}, &stdout, io.Discard, dependencies{}); exit != 0 || !strings.Contains(stdout.String(), "Usage of autoreview review") {
 		t.Fatalf("review help exit=%d output=%q", exit, stdout.String())
+	}
+}
+
+func TestInvalidFlagBeforeHelpStaysOnStderr(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run(t.Context(), []string{"review", "--unknown", "--help"}, &stdout, &stderr, dependencies{})
+	if exit != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "flag provided but not defined") {
+		t.Fatalf("exit=%d stdout=%q stderr=%q", exit, stdout.String(), stderr.String())
 	}
 }
 
