@@ -1,0 +1,12 @@
+autoreview
+Copyright (c) 2026 uinaf
+
+This project is a Go successor to the autoreview workflow originally published
+in OpenClaw's agent-skills repository:
+
+https://github.com/openclaw/agent-skills/tree/main/skills/autoreview
+
+The original work is licensed under the MIT License and is credited to
+OpenClaw. The workflow established the structured-review approach; this
+project provides a standalone Go CLI, stable machine contract, provider
+adapters, and independently installable agent skill.

@@ -1,0 +1,33 @@
+[tools]
+go = "1.26.2"
+
+[env]
+GOWORK = "off"
+
+[tasks.fmt]
+description = "Format Go sources"
+run = "gofmt -w ."
+
+[tasks."fmt:check"]
+description = "Check Go source formatting"
+run = "test -z \"$(gofmt -l .)\""
+
+[tasks.test]
+description = "Run unit tests"
+run = "go test ./..."
+
+[tasks."test:race"]
+description = "Run unit tests with the race detector"
+run = "go test -race ./..."
+
+[tasks.vet]
+description = "Run Go static analysis"
+run = "go vet ./..."
+
+[tasks.build]
+description = "Build the autoreview CLI"
+run = "go build ./cmd/autoreview"
+
+[tasks.verify]
+description = "Run deterministic repository verification"
+depends = ["fmt:check", "test", "test:race", "vet", "build"]

@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a reproducible autoreview defect with sanitized diagnostics
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include review bundles, task prompts, private source, credentials,
+        private paths, or raw provider output. Report security issues privately
+        through the Security tab.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: Describe the failure using sanitized details.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include only a synthetic or public reproduction.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: autoreview version
+      placeholder: autoreview 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: macOS arm64 or Linux amd64
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and version
+      placeholder: codex-cli 0.146.0
+    validations:
+      required: true
+  - type: dropdown
+    id: isolation
+    attributes:
+      label: Isolation mode
+      options:
+        - strict
+        - native
+    validations:
+      required: true
