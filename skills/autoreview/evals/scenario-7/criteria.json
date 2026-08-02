@@ -1,0 +1,16 @@
+{
+  "context": "Tests whether the one allowed Cursor trailing-object recovery is accepted while fenced, multiple, and suffix output remains a protocol failure without manual extraction or clean reinterpretation.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {"name": "Run A accepted", "description": "classification.md treats Run A as a valid review result rather than a protocol failure", "max_score": 10},
+    {"name": "Recovery metadata recognized", "description": "The document identifies cursor_trailing_object as the recorded allowed local recovery strategy", "max_score": 10},
+    {"name": "Single trailing object condition", "description": "The explanation notes that one canonical object must consume the remaining suffix", "max_score": 10},
+    {"name": "Run B rejected", "description": "classification.md keeps Run B as exit 2 protocol failure", "max_score": 10},
+    {"name": "Fences rejected", "description": "The explanation identifies fenced output as unsupported for recovery", "max_score": 10},
+    {"name": "Multiple objects rejected", "description": "The explanation identifies the second JSON object as ambiguous or invalid", "max_score": 10},
+    {"name": "Suffix prose rejected", "description": "The explanation identifies trailing prose after the object as invalid", "max_score": 10},
+    {"name": "No manual extraction", "description": "The plan does not manually parse or copy one object out of Run B", "max_score": 10},
+    {"name": "No clean reinterpretation", "description": "The plan does not convert Run B into a clean or findings result", "max_score": 10},
+    {"name": "Failure blocker reported", "description": "The next action reports the protocol blocker or reruns only after an actual source/tool condition changes", "max_score": 10}
+  ]
+}

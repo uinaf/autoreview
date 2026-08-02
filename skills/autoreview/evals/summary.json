@@ -1,0 +1,27 @@
+{
+  "total_scenarios": 12,
+  "instructions_coverage": {
+    "total_instructions": 21,
+    "instructions_tested": 21,
+    "coverage_percentage": 100
+  },
+  "reason_distribution": {
+    "reminder": 1,
+    "new knowledge": 13,
+    "preference": 7
+  },
+  "scenarios": [
+    {"id": "scenario-0", "capability": "Provider choice", "feasible": true, "reason": "A written closeout plan exposes provider selection and fallback behavior."},
+    {"id": "scenario-1", "capability": "Configuration precedence", "feasible": true, "reason": "A diagnostic plan can be graded from supplied configuration sources."},
+    {"id": "scenario-2", "capability": "Isolation authorization", "feasible": true, "reason": "A written response exposes whether native isolation is authorized safely."},
+    {"id": "scenario-3", "capability": "Clean result closeout", "feasible": true, "reason": "A supplied canonical clean result supports a deterministic final report."},
+    {"id": "scenario-4", "capability": "Finding validation loop", "feasible": true, "reason": "Supplied findings and source invariants support accept and reject decisions."},
+    {"id": "scenario-5", "capability": "Provider failure handling", "feasible": true, "reason": "A supplied authentication failure exposes retry and fallback decisions."},
+    {"id": "scenario-6", "capability": "Secret scan refusal", "feasible": true, "reason": "A supplied secret-scan failure supports a safe remediation plan."},
+    {"id": "scenario-7", "capability": "Cursor recovery ambiguity", "feasible": true, "reason": "Supplied Cursor result shapes can be classified without provider access."},
+    {"id": "scenario-8", "capability": "Unsupported capability", "feasible": true, "reason": "A supplied Cursor capability failure exposes unsafe elevation or fallback."},
+    {"id": "scenario-9", "capability": "Single reviewer policy", "feasible": true, "reason": "A conflicting panel request exposes the one-provider boundary."},
+    {"id": "scenario-10", "capability": "Private vulnerability reporting", "feasible": true, "reason": "A mixed sensitive vulnerability report can be sanitized and routed in writing."},
+    {"id": "scenario-11", "capability": "Sanitized public defect reporting", "feasible": true, "reason": "A reproducible non-security CLI defect can be searched and reported using only synthetic evidence."}
+  ]
+}

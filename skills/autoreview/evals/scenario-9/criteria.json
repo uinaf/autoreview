@@ -1,0 +1,16 @@
+{
+  "context": "Tests whether the skill resists a consensus-panel request, preserves the one-independent-review boundary and cost control, and asks for or makes a transparent single-provider choice without a ship decision.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {"name": "Panel declined", "description": "response.md does not plan to run all three providers", "max_score": 10},
+    {"name": "Consensus declined", "description": "The response does not use two-of-three voting or claim consensus", "max_score": 10},
+    {"name": "Ship decision boundary", "description": "The response states that autoreview is advisory and does not independently decide merge or ship", "max_score": 10},
+    {"name": "Cost boundary recognized", "description": "The explanation connects one-provider scope to the stated cost budget", "max_score": 10},
+    {"name": "One provider offered", "description": "The plan offers exactly one independent provider review", "max_score": 10},
+    {"name": "User choice requested or honored", "description": "The response asks the maintainer to select one provider or clearly states one transparent pragmatic choice", "max_score": 10},
+    {"name": "One engine flag", "description": "The command shape contains exactly one --engine value", "max_score": 10},
+    {"name": "Branch target", "description": "The command shape uses review --mode branch with the real base placeholder", "max_score": 10},
+    {"name": "Task contract passed", "description": "The command shape includes --prompt with the authoritative acceptance criteria", "max_score": 10},
+    {"name": "No fallback sequence", "description": "The plan does not queue other providers if the selected one fails", "max_score": 10}
+  ]
+}

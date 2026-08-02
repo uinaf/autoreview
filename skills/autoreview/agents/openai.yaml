@@ -1,0 +1,4 @@
+interface:
+  display_name: "Autoreview"
+  short_description: "Close out code changes with one independent review"
+  default_prompt: "Use $autoreview to review this completed change against its acceptance criteria and iterate until clean."

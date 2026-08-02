@@ -1,0 +1,16 @@
+{
+  "context": "Tests whether the final report distinguishes builder proof from independent review and includes the task sources, redacted command, exact clean result, provider policy, and absence of findings.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {"name": "Sources named", "description": "closeout.md names the user request and APP-42 as authoritative task sources", "max_score": 10},
+    {"name": "Builder proof named", "description": "The report separately records branch tests and browser smoke as builder evidence", "max_score": 10},
+    {"name": "Review command recorded", "description": "The report records the branch review command or its meaningful flags with the prompt value redacted", "max_score": 10},
+    {"name": "Claude provider recorded", "description": "The report identifies Claude as the single reviewer", "max_score": 10},
+    {"name": "Clean exit recorded", "description": "The report states exit 0 and status clean", "max_score": 10},
+    {"name": "No findings recorded", "description": "The report explicitly states that the valid review contained no findings", "max_score": 10},
+    {"name": "Attempt evidence recorded", "description": "The report mentions the one valid attempt", "max_score": 10},
+    {"name": "Isolation recorded", "description": "The report records strict isolation", "max_score": 10},
+    {"name": "Web state recorded", "description": "The report records that web access was off", "max_score": 10},
+    {"name": "No ship overclaim", "description": "The report presents a clean independent closeout without claiming consensus, universal correctness, or an autonomous ship decision", "max_score": 10}
+  ]
+}
