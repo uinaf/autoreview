@@ -14,7 +14,7 @@ import (
 	"github.com/uinaf/autoreview/internal/protocol"
 )
 
-func TestCursorReviewStrictUsesFrozenStdinAndDenyConfig(t *testing.T) {
+func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 	t.Parallel()
 
 	fake := newFakeCursor(t, fakeCursorOptions{authError: "not authenticated"})
