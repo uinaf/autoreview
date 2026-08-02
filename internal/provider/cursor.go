@@ -183,14 +183,14 @@ func (cursor *Cursor) preflight(ctx context.Context, executable, workspace strin
 	if err != nil {
 		return "", probeFailure("Cursor --help", err, helpResult, environment, protocol.FailureCapability)
 	}
+	help := string(helpResult.Stdout) + string(helpResult.Stderr)
 	required := []string{"--print", "--output-format", "--mode", "--workspace", "--trust", "--model", "status"}
 	if effective.Isolation.Value == protocol.IsolationStrict {
 		required = append(required, "--sandbox")
 	}
-	if missing := missingCapabilities(string(helpResult.Stdout)+string(helpResult.Stderr), required); len(missing) != 0 {
+	if missing := missingCapabilities(help, required); len(missing) != 0 {
 		return "", newFailure(protocol.FailureCapability, "Cursor is missing required flags: "+strings.Join(missing, ", "), environment, nil)
 	}
-	help := string(helpResult.Stdout) + string(helpResult.Stderr)
 	requiredValues := [][2]string{{"--output-format", "json"}, {"--mode", "ask"}}
 	if effective.Isolation.Value == protocol.IsolationStrict {
 		requiredValues = append(requiredValues, [2]string{"--sandbox", "enabled"})
@@ -203,10 +203,11 @@ func (cursor *Cursor) preflight(ctx context.Context, executable, workspace strin
 		if err != nil {
 			return "", probeFailure("Cursor status --help", err, statusHelp, environment, protocol.FailureCapability)
 		}
-		if missing := missingCapabilities(string(statusHelp.Stdout)+string(statusHelp.Stderr), []string{"--format"}); len(missing) != 0 {
+		statusHelpText := string(statusHelp.Stdout) + string(statusHelp.Stderr)
+		if missing := missingCapabilities(statusHelpText, []string{"--format"}); len(missing) != 0 {
 			return "", newFailure(protocol.FailureCapability, "Cursor status is missing required flags: "+strings.Join(missing, ", "), environment, nil)
 		}
-		if !cursorOptionSupports(string(statusHelp.Stdout)+string(statusHelp.Stderr), "--format", "json") {
+		if !cursorOptionSupports(statusHelpText, "--format", "json") {
 			return "", newFailure(protocol.FailureCapability, "Cursor status is missing required option value: --format=json", environment, nil)
 		}
 		authResult, err := run("status", "--format", "json")
@@ -336,9 +337,11 @@ func missingCursorOptionValues(help string, required [][2]string) []string {
 }
 
 func cursorOptionSupports(help, option, value string) bool {
+	optionPattern := regexp.MustCompile(regexp.QuoteMeta(option) + `([^A-Za-z0-9_-]|$)`)
+	valuePattern := regexp.MustCompile(`(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(value) + `([^A-Za-z0-9_-]|$)`)
 	lines := strings.Split(help, "\n")
 	for index, line := range lines {
-		if !strings.Contains(line, option) {
+		if !optionPattern.MatchString(line) {
 			continue
 		}
 		section := line
@@ -349,8 +352,9 @@ func cursorOptionSupports(help, option, value string) bool {
 			}
 			section += "\n" + lines[next]
 		}
-		valuePattern := regexp.MustCompile(`(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(value) + `([^A-Za-z0-9_-]|$)`)
-		return valuePattern.MatchString(section)
+		if valuePattern.MatchString(section) {
+			return true
+		}
 	}
 	return false
 }

@@ -104,9 +104,16 @@ func TestCursorReviewNativePreservesConfigurationAndOmitsForcedSandbox(t *testin
 func TestCursorReviewRejectsUnsupportedWebPolicyBeforeDiscovery(t *testing.T) {
 	t.Parallel()
 
-	reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: filepath.Join(t.TempDir(), "missing")})
+	fake := newFakeCursor(t, fakeCursorOptions{})
+	reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: fake.path, Environment: []string{"PATH=/usr/bin:/bin", "CURSOR_API_KEY=secret"}})
 	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: cursorConfig(protocol.IsolationStrict, false, 5*time.Second)})
-	_ = assertProviderError(t, err, protocol.FailureCapability)
+	failure := assertProviderError(t, err, protocol.FailureCapability)
+	if !strings.Contains(failure.Message, "web_access=false") {
+		t.Fatalf("failure = %q", failure.Message)
+	}
+	if _, err := os.Stat(fake.arguments); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Cursor was invoked despite unsupported web policy: %v", err)
+	}
 }
 
 func TestCursorReviewRejectsSeparateReasoningConfiguration(t *testing.T) {
@@ -228,7 +235,7 @@ func TestCursorReviewDistinguishesTimeoutAndCancellation(t *testing.T) {
 		{name: "cancelled", timeout: 5 * time.Second, cancel: true, class: protocol.FailureCancelled},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			fake := newFakeCursor(t, fakeCursorOptions{delay: "0.5"})
+			fake := newFakeCursor(t, fakeCursorOptions{delay: "1"})
 			reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: fake.path, Environment: []string{"PATH=/usr/bin:/bin", "CURSOR_API_KEY=secret"}})
 			ctx := context.Background()
 			if test.cancel {
@@ -347,11 +354,11 @@ func cursorHelp(outputFormats, modes, sandboxModes string) string {
 	return strings.Join([]string{
 		"--print",
 		"--output-format <format> " + outputFormats,
+		"--model <model>",
 		"--mode <mode> choices: " + modes,
 		"--sandbox <mode> choices: " + sandboxModes,
 		"--workspace <path>",
 		"--trust",
-		"--model <model>",
 		"status",
 	}, "\n")
 }
