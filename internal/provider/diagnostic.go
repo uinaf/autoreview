@@ -39,7 +39,7 @@ func sanitizeDiagnostic(text string, environment []string) string {
 		switch {
 		case character == '\n' || character == '\t':
 			sanitized.WriteRune(character)
-		case unicode.IsControl(character):
+		case unicode.IsControl(character) || unicode.Is(unicode.Cf, character):
 			if character <= 0xff {
 				fmt.Fprintf(&sanitized, "\\x%02x", character)
 			} else {

@@ -26,7 +26,7 @@ The Codex adapter currently requires these observed CLI surfaces:
 - strict `exec`: `--ignore-user-config`, `--ignore-rules`, and `--sandbox`.
 
 Before model invocation, the adapter checks `--version`, both help surfaces,
-and `login status` when no `OPENAI_API_KEY` is present. Capability,
+and `login status` when neither `CODEX_API_KEY` nor `OPENAI_API_KEY` is present. Capability,
 authentication, timeout, cancellation, provider-process, and protocol failures
 remain distinct.
 

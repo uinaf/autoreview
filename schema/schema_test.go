@@ -106,11 +106,13 @@ func TestReviewSchemaUnionBranchesDeclareTypes(t *testing.T) {
 	if err := json.Unmarshal(data, &document); err != nil {
 		t.Fatal(err)
 	}
-	definitions := document["$defs"].(map[string]any)
-	relativePath := definitions["relative_path"].(map[string]any)
-	branches := relativePath["not"].(map[string]any)["anyOf"].([]any)
+	definitions := requireObject(t, document["$defs"], "$defs")
+	relativePath := requireObject(t, definitions["relative_path"], "$defs.relative_path")
+	notRule := requireObject(t, relativePath["not"], "$defs.relative_path.not")
+	branches := requireArray(t, notRule["anyOf"], "$defs.relative_path.not.anyOf")
 	for index, branch := range branches {
-		if branch.(map[string]any)["type"] != "string" {
+		branchObject := requireObject(t, branch, "$defs.relative_path.not.anyOf")
+		if branchObject["type"] != "string" {
 			t.Errorf("relative_path not.anyOf[%d] is missing type=string", index)
 		}
 	}
@@ -127,14 +129,32 @@ func TestCodexReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
 	if err := json.Unmarshal(data, &document); err != nil {
 		t.Fatal(err)
 	}
-	definitions := document["$defs"].(map[string]any)
-	relativePath := definitions["relative_path"].(map[string]any)
+	definitions := requireObject(t, document["$defs"], "$defs")
+	relativePath := requireObject(t, definitions["relative_path"], "$defs.relative_path")
 	if _, ok := relativePath["not"]; ok {
 		t.Fatal("Codex schema retained unsupported not keyword")
 	}
 	if relativePath["type"] != "string" || relativePath["pattern"] != `\S` {
 		t.Fatalf("Codex relative_path constraints = %+v", relativePath)
 	}
+}
+
+func requireObject(t *testing.T, value any, path string) map[string]any {
+	t.Helper()
+	object, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("%s = %T, want object", path, value)
+	}
+	return object
+}
+
+func requireArray(t *testing.T, value any, path string) []any {
+	t.Helper()
+	array, ok := value.([]any)
+	if !ok {
+		t.Fatalf("%s = %T, want array", path, value)
+	}
+	return array
 }
 
 func TestResultSchemaRejectsIncompleteSuccessMetadata(t *testing.T) {

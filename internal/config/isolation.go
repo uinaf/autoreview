@@ -64,6 +64,7 @@ func PrepareRuntime(effective Effective, parentEnvironment []string) (*Runtime, 
 	switch effective.Engine.Value {
 	case protocol.ProviderCodex:
 		allowed["OPENAI_API_KEY"] = struct{}{}
+		allowed["CODEX_API_KEY"] = struct{}{}
 	case protocol.ProviderClaude:
 		allowed["ANTHROPIC_API_KEY"] = struct{}{}
 	case protocol.ProviderCursor:

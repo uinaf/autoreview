@@ -390,6 +390,7 @@ func TestPrepareStrictRuntimeSanitizesStateAndUsesEmptyWorkspace(t *testing.T) {
 		"HOME=/private/home",
 		"CODEX_HOME=/private/codex",
 		"OPENAI_API_KEY=secret",
+		"CODEX_API_KEY=codex-secret",
 		"ANTHROPIC_API_KEY=claude-secret",
 		"CURSOR_API_KEY=cursor-secret",
 		"ALL_PROXY=socks5://proxy.example:1080",
@@ -410,6 +411,7 @@ func TestPrepareStrictRuntimeSanitizesStateAndUsesEmptyWorkspace(t *testing.T) {
 	for _, expected := range []string{
 		"PATH=/usr/bin",
 		"OPENAI_API_KEY=secret",
+		"CODEX_API_KEY=codex-secret",
 		"ALL_PROXY=socks5://proxy.example:1080",
 		"NODE_EXTRA_CA_CERTS=/etc/company-ca.pem",
 		"no_proxy=localhost,127.0.0.1",

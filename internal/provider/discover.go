@@ -20,13 +20,10 @@ func discoverExecutable(name, repository string, environment []string) (string, 
 	}
 	pathValue := environmentValue(environment, "PATH")
 	for _, directory := range filepath.SplitList(pathValue) {
-		if directory == "" {
-			directory = "."
-		}
-		candidate, err := filepath.Abs(filepath.Join(directory, name))
-		if err != nil {
+		if !filepath.IsAbs(directory) {
 			continue
 		}
+		candidate := filepath.Join(directory, name)
 		path, err := validateExecutable(candidate, repository)
 		if err == nil {
 			return path, nil
@@ -36,7 +33,11 @@ func discoverExecutable(name, repository string, environment []string) (string, 
 }
 
 func validateExecutable(path, repository string) (string, error) {
-	resolved, err := filepath.EvalSymlinks(path)
+	original, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(original)
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +45,11 @@ func validateExecutable(path, repository string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	root, err := filepath.EvalSymlinks(repository)
+	originalRoot, err := filepath.Abs(repository)
+	if err != nil {
+		return "", fmt.Errorf("resolve reviewed repository: %w", err)
+	}
+	root, err := filepath.EvalSymlinks(originalRoot)
 	if err != nil {
 		return "", fmt.Errorf("resolve reviewed repository: %w", err)
 	}
@@ -52,7 +57,7 @@ func validateExecutable(path, repository string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve reviewed repository: %w", err)
 	}
-	if pathInside(root, resolved) {
+	if pathInside(originalRoot, original) || pathInside(root, original) || pathInside(root, resolved) {
 		return "", fmt.Errorf("provider executable %q is inside the reviewed repository", resolved)
 	}
 	info, err := os.Stat(resolved)

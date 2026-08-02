@@ -57,11 +57,14 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	if spec.Timeout <= 0 {
 		return processResult{}, &processError{Kind: processStart, Err: fmt.Errorf("timeout must be positive")}
 	}
+	if spec.StdoutLimit < 0 || spec.StderrLimit < 0 {
+		return processResult{}, &processError{Kind: processStart, Err: fmt.Errorf("output limits must not be negative")}
+	}
 	runContext, cancel := context.WithTimeout(ctx, spec.Timeout)
 	defer cancel()
 	command := exec.CommandContext(runContext, spec.Path, spec.Arguments...)
 	command.Dir = spec.Directory
-	command.Env = append([]string(nil), spec.Environment...)
+	command.Env = append(make([]string, 0, len(spec.Environment)), spec.Environment...)
 	command.Stdin = bytes.NewReader(spec.Input)
 	configureProcess(command)
 	command.Cancel = func() error {
@@ -99,6 +102,8 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	switch {
 	case overflow.Load():
 		kind = processOutputLimit
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		kind = processTimeout
 	case ctx.Err() != nil:
 		kind = processCancelled
 	case errors.Is(runContext.Err(), context.DeadlineExceeded):

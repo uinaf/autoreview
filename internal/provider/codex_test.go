@@ -113,7 +113,7 @@ func TestCodexReviewFailsCapabilityProbeBeforeInvocation(t *testing.T) {
 		Environment: []string{"PATH=/usr/bin:/bin", "OPENAI_API_KEY=test-provider-secret"},
 	})
 	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
-	assertProviderError(t, err, protocol.FailureCapability)
+	_ = assertProviderError(t, err, protocol.FailureCapability)
 	if _, err := os.Stat(fake.arguments); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("model was invoked after failed capability probe: %v", err)
 	}
@@ -129,7 +129,24 @@ func TestCodexReviewReportsAuthenticationFailure(t *testing.T) {
 		Environment: []string{"PATH=/usr/bin:/bin", "HOME=/native/home"},
 	})
 	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationNative, false, 5*time.Second)})
-	assertProviderError(t, err, protocol.FailureAuth)
+	_ = assertProviderError(t, err, protocol.FailureAuth)
+}
+
+func TestCodexReviewAcceptsExecCredentialWithoutLoginState(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeCodex(t, fakeCodexOptions{authError: "not logged in"})
+	reviewer := NewCodex(CodexOptions{
+		Repository:  t.TempDir(),
+		Executable:  fake.path,
+		Environment: []string{"PATH=/usr/bin:/bin", "CODEX_API_KEY=test-provider-secret"},
+	})
+	if _, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	if environment := readTestFile(t, fake.environment); !strings.Contains(environment, "CODEX_API_KEY=test-provider-secret") {
+		t.Fatalf("strict environment = %s", environment)
+	}
 }
 
 func TestCodexReviewRedactsProviderFailure(t *testing.T) {
@@ -181,8 +198,25 @@ func TestCodexReviewDistinguishesTimeoutAndCancellation(t *testing.T) {
 				}()
 			}
 			_, err := reviewer.Review(ctx, Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, test.timeout)})
-			assertProviderError(t, err, test.class)
+			_ = assertProviderError(t, err, test.class)
 		})
+	}
+}
+
+func TestCodexReviewUsesSingleTimeoutBudget(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeCodex(t, fakeCodexOptions{probeDelay: "0.06"})
+	reviewer := NewCodex(CodexOptions{
+		Repository:  t.TempDir(),
+		Executable:  fake.path,
+		Environment: []string{"PATH=/usr/bin:/bin", "CODEX_API_KEY=test-provider-secret"},
+	})
+	started := time.Now()
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 150*time.Millisecond)})
+	_ = assertProviderError(t, err, protocol.FailureTimeout)
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("Review() exceeded timeout budget: %s", elapsed)
 	}
 }
 
@@ -274,6 +308,7 @@ type fakeCodexOptions struct {
 	authError       string
 	reviewError     string
 	delay           string
+	probeDelay      string
 }
 
 type fakeCodex struct {
@@ -335,8 +370,13 @@ func newFakeCodex(t *testing.T, options fakeCodexOptions) fakeCodex {
 	if options.delay != "" {
 		delay = "sleep " + options.delay + "\n"
 	}
+	probeDelay := ""
+	if options.probeDelay != "" {
+		probeDelay = "sleep " + options.probeDelay + "\n"
+	}
 	script := "#!/bin/sh\n" +
 		"set -eu\n" +
+		probeDelay +
 		"if [ \"${1:-}\" = \"--version\" ]; then printf '%s\\n' 'codex-cli 0.146.0'; exit 0; fi\n" +
 		"if [ \"${1:-}\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.topHelp) + "; exit 0; fi\n" +
 		"if [ \"${1:-}\" = \"exec\" ] && [ \"${2:-}\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.execHelp) + "; exit 0; fi\n" +

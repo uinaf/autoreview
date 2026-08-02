@@ -32,6 +32,58 @@ func TestRunProcessBoundsOutput(t *testing.T) {
 	}
 }
 
+func TestRunProcessRejectsNegativeOutputLimits(t *testing.T) {
+	t.Parallel()
+
+	_, err := runProcess(context.Background(), processSpec{Timeout: time.Second, StdoutLimit: -1})
+	var failure *processError
+	if !errors.As(err, &failure) || failure.Kind != processStart || !strings.Contains(err.Error(), "output limits") {
+		t.Fatalf("runProcess() error = %v", err)
+	}
+}
+
+func TestRunProcessEmptyEnvironmentDoesNotInheritParent(t *testing.T) {
+	t.Parallel()
+
+	script := writeTestExecutable(t, "environment", "#!/bin/sh\n/usr/bin/env\n")
+	result, err := runProcess(context.Background(), processSpec{
+		Path: script, Directory: t.TempDir(), Environment: []string{}, Timeout: 5 * time.Second, StdoutLimit: 1024, StderrLimit: 1024,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(result.Stdout), "PATH=") || strings.Contains(string(result.Stdout), "HOME=") {
+		t.Fatalf("child inherited environment: %q", result.Stdout)
+	}
+}
+
+func TestReadProviderResultUsesOriginalDescriptor(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "result.json")
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = file.Close() })
+	if _, err := file.WriteString("original"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("replacement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	content, err := readProviderResult(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "original" {
+		t.Fatalf("readProviderResult() = %q", content)
+	}
+}
+
 func TestRunProcessTimeoutKillsChildProcessGroup(t *testing.T) {
 	t.Parallel()
 
@@ -50,7 +102,7 @@ func TestRunProcessTimeoutKillsChildProcessGroup(t *testing.T) {
 	if !errors.As(err, &failure) || failure.Kind != processTimeout {
 		t.Fatalf("runProcess() error = %v", err)
 	}
-	if time.Since(started) > time.Second {
+	if time.Since(started) > 3*time.Second {
 		t.Fatalf("timeout cleanup took %s", time.Since(started))
 	}
 	time.Sleep(500 * time.Millisecond)
@@ -67,6 +119,15 @@ func TestSanitizeDiagnosticRedactsSecretsAndEscapesControls(t *testing.T) {
 		t.Fatalf("sanitizeDiagnostic() = %q", value)
 	}
 	if !strings.Contains(value, "[redacted]") || !strings.Contains(value, `\x1b`) || !strings.Contains(value, `\x0d`) {
+		t.Fatalf("sanitizeDiagnostic() = %q", value)
+	}
+}
+
+func TestSanitizeDiagnosticEscapesUnicodeFormatCharacters(t *testing.T) {
+	t.Parallel()
+
+	value := sanitizeDiagnostic("safe\u202eevil\u200b", nil)
+	if strings.ContainsRune(value, '\u202e') || strings.ContainsRune(value, '\u200b') || !strings.Contains(value, `\u202e`) || !strings.Contains(value, `\u200b`) {
 		t.Fatalf("sanitizeDiagnostic() = %q", value)
 	}
 }

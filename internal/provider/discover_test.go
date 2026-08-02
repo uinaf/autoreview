@@ -46,3 +46,38 @@ func TestDiscoverExecutableResolvesExternalSymlink(t *testing.T) {
 		t.Fatalf("resolved executable = %q, want %q", resolved, want)
 	}
 }
+
+func TestDiscoverExecutableRejectsRepositorySymlinkToExternalBinary(t *testing.T) {
+	t.Parallel()
+
+	repository := t.TempDir()
+	external := writeTestExecutable(t, "codex-real", "#!/bin/sh\nexit 0\n")
+	link := filepath.Join(repository, "codex")
+	if err := os.Symlink(external, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := discoverExecutable(link, repository, nil); err == nil {
+		t.Fatal("discoverExecutable() accepted a repository-local symlink")
+	}
+}
+
+func TestDiscoverExecutableSkipsRelativePathEntries(t *testing.T) {
+	t.Parallel()
+
+	repository := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "codex"), []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	relative, err := filepath.Rel(workingDirectory, outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := discoverExecutable("codex", repository, []string{"PATH=" + relative}); err == nil {
+		t.Fatal("discoverExecutable() accepted a relative PATH entry")
+	}
+}

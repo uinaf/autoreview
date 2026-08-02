@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -73,6 +74,8 @@ func (codex *Codex) Review(ctx context.Context, request Request) (result Result,
 	if maximumPrompt < request.Config.MaxBytes.Value || int64(len(request.Prompt)) > maximumPrompt {
 		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("provider prompt exceeds %d bytes", maximumPrompt), nil, nil)
 	}
+	reviewContext, cancelReview := context.WithTimeout(ctx, time.Duration(request.Config.Timeout.Value))
+	defer cancelReview()
 	repository, err := filepath.Abs(codex.repository)
 	if err != nil {
 		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("resolve reviewed repository: %v", err), nil, nil)
@@ -91,7 +94,7 @@ func (codex *Codex) Review(ctx context.Context, request Request) (result Result,
 			returnError = newFailure(protocol.FailureInternal, err.Error(), runtime.Environment(), nil)
 		}
 	}()
-	version, err := codex.preflight(ctx, executable, runtime, request.Config)
+	version, err := codex.preflight(reviewContext, executable, runtime, request.Config)
 	if err != nil {
 		return Result{}, err
 	}
@@ -114,15 +117,17 @@ func (codex *Codex) Review(ctx context.Context, request Request) (result Result,
 	if err := os.WriteFile(schemaPath, codexSchema, 0o600); err != nil {
 		return Result{}, newFailure(protocol.FailureInternal, fmt.Sprintf("write Codex schema: %v", err), runtime.Environment(), nil)
 	}
-	if err := os.WriteFile(outputPath, nil, 0o600); err != nil {
+	outputFile, err := os.OpenFile(outputPath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o600)
+	if err != nil {
 		return Result{}, newFailure(protocol.FailureInternal, fmt.Sprintf("create Codex output: %v", err), runtime.Environment(), nil)
 	}
+	defer func() { _ = outputFile.Close() }()
 	model := request.Config.Model.Value
 	if model == "" {
 		model = DefaultCodexModel
 	}
 	arguments := codexArguments(request.Config, runtime.Workspace, schemaPath, outputPath, model)
-	process, processErr := runProcess(ctx, processSpec{
+	process, processErr := runProcess(reviewContext, processSpec{
 		Path:        executable,
 		Arguments:   arguments,
 		Directory:   runtime.Workspace,
@@ -146,7 +151,7 @@ func (codex *Codex) Review(ctx context.Context, request Request) (result Result,
 		attempt.ErrorClass = &class
 		return Result{}, newFailure(class, fmt.Sprintf("decode Codex envelope: %v", err), runtime.Environment(), &attempt)
 	}
-	output, err := readProviderResult(outputPath)
+	output, err := readProviderResult(outputFile)
 	if err != nil {
 		class := protocol.FailureProtocol
 		attempt.Outcome = protocol.AttemptMalformed
@@ -233,7 +238,7 @@ func (codex *Codex) preflight(ctx context.Context, executable string, runtime *c
 	if missing := missingCapabilities(string(execHelp.Stdout)+string(execHelp.Stderr), requiredExec); len(missing) != 0 {
 		return "", newFailure(protocol.FailureCapability, "Codex exec is missing required flags: "+strings.Join(missing, ", "), runtime.Environment(), nil)
 	}
-	if environmentValue(runtime.Environment(), "OPENAI_API_KEY") == "" {
+	if environmentValue(runtime.Environment(), "CODEX_API_KEY") == "" && environmentValue(runtime.Environment(), "OPENAI_API_KEY") == "" {
 		auth, err := run("login", "status")
 		if err != nil {
 			return "", probeFailure("Codex authentication", err, auth, runtime.Environment(), protocol.FailureAuth)
@@ -272,7 +277,7 @@ func codexArguments(effective config.Effective, workspace, schemaPath, outputPat
 			"-c", `permissions.autoreview.filesystem={":minimal"="read",":workspace_roots"="read"}`,
 		)
 	}
-	arguments = append(arguments, "exec", "--json", "--color", "never", "--ephemeral", "--skip-git-repo-check", "-C", workspace)
+	arguments = append(arguments, "exec", "--json", "--color", "never", "--ephemeral", "--skip-git-repo-check", "--cd", workspace)
 	if effective.Isolation.Value == protocol.IsolationStrict {
 		arguments = append(arguments, "--sandbox", "read-only", "--ignore-user-config", "--ignore-rules")
 	}
@@ -354,23 +359,32 @@ func decodeCodexEnvelope(output []byte) (string, error) {
 	return lastMessage, nil
 }
 
-func readProviderResult(path string) ([]byte, error) {
-	info, err := os.Lstat(path)
+func readProviderResult(file *os.File) ([]byte, error) {
+	if _, err := file.Seek(0, 0); err != nil {
+		return nil, err
+	}
+	before, err := file.Stat()
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() {
+	if !before.Mode().IsRegular() {
 		return nil, fmt.Errorf("result is not a regular file")
 	}
-	if info.Size() > providerResultLimit {
+	if before.Size() > providerResultLimit {
 		return nil, fmt.Errorf("result exceeds %d bytes", providerResultLimit)
 	}
-	content, err := os.ReadFile(path)
+	content := make([]byte, before.Size())
+	read, err := io.ReadFull(file, content)
+	if err != nil {
+		return nil, fmt.Errorf("read result: %w", err)
+	}
+	content = content[:read]
+	after, err := file.Stat()
 	if err != nil {
 		return nil, err
 	}
-	if int64(len(content)) > providerResultLimit {
-		return nil, fmt.Errorf("result exceeds %d bytes", providerResultLimit)
+	if !os.SameFile(before, after) || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) || int64(len(content)) != before.Size() {
+		return nil, fmt.Errorf("result changed while reading")
 	}
 	return content, nil
 }

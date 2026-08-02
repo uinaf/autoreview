@@ -19,7 +19,7 @@ func killProcessGroup(process *os.Process) error {
 	}
 	err := syscall.Kill(-process.Pid, syscall.SIGKILL)
 	if errors.Is(err, syscall.ESRCH) {
-		return nil
+		return os.ErrProcessDone
 	}
 	return err
 }
