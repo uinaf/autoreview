@@ -310,6 +310,10 @@ func validPath(value string) error {
 	return nil
 }
 
+func ValidatePath(value string) error {
+	return validPath(value)
+}
+
 func validIsolation(value Isolation) bool {
 	return value == IsolationStrict || value == IsolationNative
 }
