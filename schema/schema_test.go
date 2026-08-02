@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	contractschema "github.com/uinaf/autoreview/schema"
 )
 
 func TestExternalReferencesResolveBesideSchema(t *testing.T) {
@@ -92,6 +93,68 @@ func TestSchemasRejectUnsafePaths(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReviewSchemaUnionBranchesDeclareTypes(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("review-v1.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	definitions := requireObject(t, document["$defs"], "$defs")
+	relativePath := requireObject(t, definitions["relative_path"], "$defs.relative_path")
+	notRule := requireObject(t, relativePath["not"], "$defs.relative_path.not")
+	branches := requireArray(t, notRule["anyOf"], "$defs.relative_path.not.anyOf")
+	for index, branch := range branches {
+		branchObject := requireObject(t, branch, "$defs.relative_path.not.anyOf")
+		if branchObject["type"] != "string" {
+			t.Errorf("relative_path not.anyOf[%d] is missing type=string", index)
+		}
+	}
+}
+
+func TestCodexReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
+	t.Parallel()
+
+	data, err := contractschema.CodexReviewV1()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	definitions := requireObject(t, document["$defs"], "$defs")
+	relativePath := requireObject(t, definitions["relative_path"], "$defs.relative_path")
+	if _, ok := relativePath["not"]; ok {
+		t.Fatal("Codex schema retained unsupported not keyword")
+	}
+	if relativePath["type"] != "string" || relativePath["pattern"] != `\S` {
+		t.Fatalf("Codex relative_path constraints = %+v", relativePath)
+	}
+}
+
+func requireObject(t *testing.T, value any, path string) map[string]any {
+	t.Helper()
+	object, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("%s = %T, want object", path, value)
+	}
+	return object
+}
+
+func requireArray(t *testing.T, value any, path string) []any {
+	t.Helper()
+	array, ok := value.([]any)
+	if !ok {
+		t.Fatalf("%s = %T, want array", path, value)
+	}
+	return array
 }
 
 func TestResultSchemaRejectsIncompleteSuccessMetadata(t *testing.T) {

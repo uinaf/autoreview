@@ -32,6 +32,8 @@ The [target boundary](docs/TARGETS.md) documents frozen Git input and secret
 scanning. [Configuration and isolation](docs/CONFIG.md) defines the typed
 precedence rules, effective-config diagnostic, and strict/native provider
 workspace contract.
+[Provider execution](docs/PROVIDERS.md) documents executable trust, bounded
+process behavior, provider isolation, and the current Codex CLI contract.
 
 ## License
 
