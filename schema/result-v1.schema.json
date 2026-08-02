@@ -1,0 +1,349 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "autoreview result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "review",
+    "failure",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "status": {
+      "enum": ["clean", "findings", "failure"]
+    },
+    "review": {
+      "oneOf": [
+        { "$ref": "review-v1.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "failure": {
+      "oneOf": [
+        { "$ref": "#/$defs/failure" },
+        { "type": "null" }
+      ]
+    },
+    "metadata": {
+      "$ref": "#/$defs/metadata"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "failure" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "review": { "type": "null" },
+          "failure": { "$ref": "#/$defs/failure" }
+        }
+      },
+      "else": {
+        "properties": {
+          "review": { "$ref": "review-v1.schema.json" },
+          "failure": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "const": "clean" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "review": {
+            "allOf": [
+              { "$ref": "review-v1.schema.json" },
+              {
+                "properties": {
+                  "findings": { "maxItems": 0 }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "const": "findings" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "review": {
+            "allOf": [
+              { "$ref": "review-v1.schema.json" },
+              {
+                "properties": {
+                  "findings": { "minItems": 1 }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class", "message"],
+      "properties": {
+        "class": {
+          "enum": [
+            "config",
+            "target",
+            "secret_scan",
+            "capability",
+            "authentication",
+            "timeout",
+            "cancelled",
+            "provider",
+            "protocol",
+            "source_changed",
+            "internal"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "provider",
+        "attempts",
+        "duration_ms",
+        "isolation",
+        "web_access",
+        "protocol_recovery"
+      ],
+      "properties": {
+        "target": {
+          "oneOf": [
+            { "$ref": "#/$defs/target" },
+            { "type": "null" }
+          ]
+        },
+        "provider": {
+          "oneOf": [
+            { "$ref": "#/$defs/provider" },
+            { "type": "null" }
+          ]
+        },
+        "attempts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/attempt" }
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "isolation": {
+          "oneOf": [
+            { "enum": ["strict", "native"] },
+            { "type": "null" }
+          ]
+        },
+        "web_access": {
+          "type": "boolean"
+        },
+        "protocol_recovery": {
+          "$ref": "#/$defs/protocol_recovery"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "protocol_recovery": {
+                "properties": { "applied": { "const": true } },
+                "required": ["applied"]
+              }
+            },
+            "required": ["protocol_recovery"]
+          },
+          "then": {
+            "properties": {
+              "provider": {
+                "type": "object",
+                "properties": { "name": { "const": "cursor" } },
+                "required": ["name"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "snapshot_hash",
+        "head_revision",
+        "base_revision",
+        "commit_revision",
+        "files"
+      ],
+      "properties": {
+        "mode": {
+          "enum": ["local", "branch", "commit"]
+        },
+        "snapshot_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head_revision": { "type": "string" },
+        "base_revision": { "type": "string" },
+        "commit_revision": { "type": "string" },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/reviewed_file" }
+        }
+      }
+    },
+    "reviewed_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_path", "line_ranges"],
+      "properties": {
+        "file_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line_ranges": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/line_range" }
+        }
+      }
+    },
+    "line_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_line", "end_line"],
+      "properties": {
+        "start_line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "model", "version"],
+      "properties": {
+        "name": {
+          "enum": ["codex", "claude", "cursor"]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["number", "outcome", "duration_ms", "error_class"],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "outcome": {
+          "enum": ["valid", "malformed", "failed"]
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "error_class": {
+          "oneOf": [
+            { "$ref": "#/$defs/failure_class" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "failure_class": {
+      "enum": [
+        "config",
+        "target",
+        "secret_scan",
+        "capability",
+        "authentication",
+        "timeout",
+        "cancelled",
+        "provider",
+        "protocol",
+        "source_changed",
+        "internal"
+      ]
+    },
+    "protocol_recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applied", "strategy"],
+      "properties": {
+        "applied": { "type": "boolean" },
+        "strategy": {
+          "oneOf": [
+            { "const": "cursor_trailing_object" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "applied": { "const": true } },
+            "required": ["applied"]
+          },
+          "then": {
+            "properties": { "strategy": { "const": "cursor_trailing_object" } }
+          },
+          "else": {
+            "properties": { "strategy": { "type": "null" } }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "status": "failure",
+  "review": null,
+  "failure": {
+    "class": "config",
+    "message": "No review engine was selected by flags or configuration."
+  },
+  "metadata": {
+    "target": null,
+    "provider": null,
+    "attempts": [],
+    "duration_ms": 0,
+    "isolation": null,
+    "web_access": false,
+    "protocol_recovery": {
+      "applied": false,
+      "strategy": null
+    }
+  }
+}
