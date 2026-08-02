@@ -28,16 +28,11 @@ command -v trufflehog
 
 ## Choose exactly one provider
 
-Honor provider, model, and reasoning-effort choices requested by the user or
-selected by trusted configuration. Pass explicit user model and effort choices
-with `--model` and `--reasoning-effort`; do not invent overrides. Cursor is the
-exception: its effort is part of the model ID, so never pass a separate effort
-flag for Cursor. Report a separate Cursor effort choice as unsupported unless
-the user supplies a compatible model ID. Otherwise choose one available
-harness that fits the task and state the choice. Never run a panel, silently
-switch providers, or retry a failure with another provider. Read
-[providers.md](references/providers.md) before choosing a provider or
-overriding its defaults.
+Honor provider, model, and effort choices from the user or trusted config; do
+not invent overrides. Pass explicit model and effort flags except for Cursor,
+whose effort belongs in its model ID. Report unsupported combinations. If no
+source chooses a provider, select one installed harness and state why. Never
+run a panel or fall back. Read [providers.md](references/providers.md).
 
 Keep strict isolation and web access off unless the user explicitly authorizes
 the capability or an ownership-checked account-home XDG config enables it.
@@ -77,11 +72,9 @@ operational failure.
 2. Reject findings that are incorrect, out of scope, or already prevented by a
    stronger invariant; record the reason briefly.
 3. Apply the smallest accepted fix at the owning boundary.
-4. Confirm every fix belongs to the next frozen target. Local mode includes
-   worktree changes. For branch mode, commit fixes on the branch; for commit
-   mode, amend them into the reviewed commit. Commit or amend only when already
-   authorized; otherwise report the blocker. Never claim branch or commit
-   coverage while a fix exists only in the worktree.
+4. Confirm every fix belongs to the next frozen target: local includes the
+   worktree, branch requires a commit on that branch, and commit mode requires
+   an amended commit. If committing is not authorized, report the blocker.
 5. Rerun focused builder checks and any real-surface acceptance proof affected
    by the fix, then rerun autoreview with the same provider, target semantics,
    and task contract.
