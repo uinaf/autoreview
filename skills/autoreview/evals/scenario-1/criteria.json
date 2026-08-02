@@ -4,13 +4,13 @@
   "checklist": [
     {"name": "Flag engine precedence", "description": "diagnosis.md identifies codex from --engine as the highest-precedence engine value", "max_score": 10},
     {"name": "Flag timeout precedence", "description": "diagnosis.md identifies 90s from --timeout as the highest-precedence timeout value", "max_score": 10},
-    {"name": "Environment precedence explained", "description": "The document states that environment values override repository and XDG values when no flag overrides them", "max_score": 10},
-    {"name": "Repository precedence explained", "description": "The document states that repository configuration overrides XDG configuration", "max_score": 10},
+    {"name": "Requested model propagated", "description": "The diagnostic and review commands pass the explicit gpt-5.6-sol choice with --model", "max_score": 10},
+    {"name": "Requested effort propagated", "description": "The diagnostic and review commands pass the explicit high choice with --reasoning-effort", "max_score": 10},
+    {"name": "Configuration precedence explained", "description": "The document states that environment values override repository values and repository values override XDG values when no flag overrides them", "max_score": 10},
     {"name": "Environment capability rejection", "description": "The plan identifies AUTOREVIEW_ISOLATION=native and AUTOREVIEW_WEB_ACCESS=true as rejected capability elevation", "max_score": 10},
     {"name": "Untrusted XDG capability rejection", "description": "The plan identifies native isolation in an XDG_CONFIG_HOME-selected file as unauthorized", "max_score": 10},
     {"name": "No effective success claimed", "description": "The document says configuration fails until unauthorized capability settings are removed or made strict instead of presenting a successful effective config", "max_score": 10},
-    {"name": "Diagnostic command", "description": "The plan uses autoreview config --repository . with the intended flag overrides and preferably --json", "max_score": 10},
-    {"name": "No automatic capability elevation", "description": "The safe plan does not enable native isolation or web access to make Cursor work", "max_score": 10},
-    {"name": "Local target command", "description": "After configuration remediation, the planned review command uses review --mode local, the chosen engine, and --prompt", "max_score": 10}
+    {"name": "Diagnostic command", "description": "The plan uses autoreview config --repository . with the engine, model, effort, and timeout flag overrides, preferably with --json", "max_score": 10},
+    {"name": "Safe local target command", "description": "After remediation, the review command uses review --mode local, passes engine, model, effort, timeout, and --prompt, and does not enable native isolation or web access", "max_score": 10}
   ]
 }

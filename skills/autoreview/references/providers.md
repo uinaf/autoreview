@@ -1,9 +1,11 @@
 # Provider selection
 
-Select one provider for the entire review. Honor the user's choice first, then
-trusted repository or account configuration. If neither chooses, select one
-installed harness that satisfies the task and explain the choice. Do not run
-multiple providers, fall back after failure, or claim consensus.
+Select one provider for the entire review. Honor the user's provider, model, and
+reasoning-effort choices first, then trusted repository or account
+configuration. Pass explicit user model and effort choices as CLI flags. If no
+source chooses a provider, select one installed harness that satisfies the task
+and explain the choice. Do not run multiple providers, fall back after failure,
+or claim consensus.
 
 | Engine | Default model | Strict authentication | Important constraint |
 | --- | --- | --- | --- |

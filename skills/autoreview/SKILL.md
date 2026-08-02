@@ -28,11 +28,13 @@ command -v trufflehog
 
 ## Choose exactly one provider
 
-Honor a provider requested by the user or selected by trusted configuration.
-Otherwise choose one available harness that fits the task and state the choice.
-Never run a panel, silently switch providers, or retry a failure with another
-provider. Read [providers.md](references/providers.md) before choosing or
-overriding a model.
+Honor provider, model, and reasoning-effort choices requested by the user or
+selected by trusted configuration. Pass explicit user model and effort choices
+with `--model` and `--reasoning-effort`; do not invent overrides. Otherwise
+choose one available harness that fits the task and state the choice. Never run
+a panel, silently switch providers, or retry a failure with another provider.
+Read [providers.md](references/providers.md) before choosing a provider or
+overriding its defaults.
 
 Keep strict isolation and web access off unless the user explicitly authorizes
 the capability or an ownership-checked account-home XDG config enables it.
