@@ -33,7 +33,8 @@ scanning. [Configuration and isolation](docs/CONFIG.md) defines the typed
 precedence rules, effective-config diagnostic, and strict/native provider
 workspace contract.
 [Provider execution](docs/PROVIDERS.md) documents executable trust, bounded
-process behavior, provider isolation, and the Codex and Claude CLI contracts.
+process behavior, provider isolation, and the Codex, Claude, and Cursor CLI
+contracts.
 
 ## License
 
