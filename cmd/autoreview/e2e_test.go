@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -46,7 +48,7 @@ func TestBinaryEndToEndWithFakeCodex(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repository := reviewRepository(t)
-			toolsDirectory, calls := writeFakeReviewTools(t, test.scenario)
+			toolsDirectory, calls, providerPID := writeFakeReviewTools(t, test.scenario)
 			xdg := t.TempDir()
 			arguments := []string{
 				"review", "--repository", repository, "--mode", "local", "--engine", "codex",
@@ -76,7 +78,7 @@ func TestBinaryEndToEndWithFakeCodex(t *testing.T) {
 				go func() { finished <- command.Wait() }()
 				select {
 				case runErr = <-finished:
-				case <-time.After(5 * time.Second):
+				case <-time.After(2 * time.Second):
 					_ = command.Process.Kill()
 					t.Fatal("interrupted CLI did not terminate its provider")
 				}
@@ -109,14 +111,18 @@ func TestBinaryEndToEndWithFakeCodex(t *testing.T) {
 			if strings.Contains(stderr.String(), `"schema_version"`) || !strings.Contains(stderr.String(), "reviewing with codex") {
 				t.Fatalf("stdout/stderr contract failed: stderr=%q", stderr.String())
 			}
+			if test.interrupt {
+				assertProcessExited(t, providerPID)
+			}
 		})
 	}
 }
 
-func writeFakeReviewTools(t *testing.T, scenario string) (string, string) {
+func writeFakeReviewTools(t *testing.T, scenario string) (string, string, string) {
 	t.Helper()
 	directory := t.TempDir()
 	calls := filepath.Join(directory, "calls")
+	providerPID := filepath.Join(directory, "provider-pid")
 	clean := `{"findings":[],"overall_explanation":"No defects.","overall_confidence":0.95}`
 	findings := `{"findings":[{"title":"Defect","body":"Broken behavior.","priority":"P1","confidence":0.9,"category":"bug","location":{"file_path":"app.go","start_line":1,"end_line":1}}],"overall_explanation":"One defect.","overall_confidence":0.9}`
 	result := clean
@@ -131,6 +137,7 @@ func writeFakeReviewTools(t *testing.T, scenario string) (string, string) {
 		"if [ \"${1:-}\" = \"exec\" ] && [ \"${2:-}\" = \"--help\" ]; then printf '%s\\n' '--ephemeral --skip-git-repo-check --output-schema --output-last-message --json --cd --ignore-user-config --ignore-rules --sandbox'; exit 0; fi\n" +
 		"output=''\nprevious=''\nfor argument in \"$@\"; do\n  if [ \"$previous\" = \"--output-last-message\" ]; then output=\"$argument\"; fi\n  previous=\"$argument\"\ndone\n" +
 		"test -n \"$output\"\n/bin/cat >/dev/null\n" +
+		"printf '%s\\n' \"$$\" > " + shellLiteral(providerPID) + "\n" +
 		"count=0\nif [ -f " + shellLiteral(calls) + " ]; then count=$(/bin/cat " + shellLiteral(calls) + "); fi\ncount=$((count + 1))\nprintf '%s\\n' \"$count\" > " + shellLiteral(calls) + "\n" +
 		"result=" + shellLiteral(result) + "\nenvelope=" + shellLiteral(envelope) + "\n"
 	if scenario == "retry" {
@@ -140,7 +147,7 @@ func writeFakeReviewTools(t *testing.T, scenario string) (string, string) {
 		script += "printf '%s\\n' 'provider crashed' >&2\nexit 7\n"
 	}
 	if scenario == "delay" {
-		script += "/bin/sleep 5\n"
+		script += "/bin/sleep 30\n"
 	}
 	script += "printf '%s' \"$result\" > \"$output\"\nprintf '%s' \"$envelope\"\n"
 	if err := os.WriteFile(filepath.Join(directory, "codex"), []byte(script), 0o700); err != nil {
@@ -149,7 +156,7 @@ func writeFakeReviewTools(t *testing.T, scenario string) (string, string) {
 	if err := os.WriteFile(filepath.Join(directory, "trufflehog"), []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	return directory, calls
+	return directory, calls, providerPID
 }
 
 func fakeCodexEnvelope(t *testing.T, message string) string {
@@ -198,6 +205,21 @@ func waitForFile(t *testing.T, path string, timeout time.Duration) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for %s", path)
+}
+
+func assertProcessExited(t *testing.T, pidPath string) {
+	t.Helper()
+	content, err := os.ReadFile(pidPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(content)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+		t.Fatalf("provider process %d survived cancellation: %v", pid, err)
+	}
 }
 
 func exitCode(err error) int {
