@@ -41,5 +41,8 @@ create the issue. Tell the user what prevented safe reporting.
 Never open a public issue for suspected secret exposure, command injection,
 path traversal, unsafe provider execution, sandbox escape, bundle-boundary
 failure, or malformed output accepted as clean. Use private vulnerability
-reporting from the `uinaf/autoreview` repository Security tab and omit live
-credentials or private source.
+reporting from the `uinaf/autoreview` repository Security tab. Use synthetic,
+high-level reproduction details. Even in a private report, never include a
+frozen bundle, task prompt, reviewed source or diff, repository identity,
+private or absolute path, credential, environment output, provider command
+line, or raw provider output.

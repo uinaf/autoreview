@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -180,22 +180,22 @@ func TestSkillEvalScenariosAreComplete(t *testing.T) {
 	}
 }
 
-func TestSkillAutoreviewCommandsUseCurrentCLIFlags(t *testing.T) {
+func TestSkillAutoreviewCommandsUseBuiltCLIFlags(t *testing.T) {
 	t.Parallel()
 
 	root := skillRoot(t)
+	binary := filepath.Join(t.TempDir(), "autoreview")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "./cmd/autoreview")
+	build.Dir = filepath.Clean(filepath.Join(root, "..", ".."))
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build autoreview: %v\n%s", err, output)
+	}
 	paths := []string{
 		filepath.Join(root, "SKILL.md"),
 		filepath.Join(root, "references", "configuration.md"),
 	}
-	var reviewHelp bytes.Buffer
-	if exit := run(t.Context(), []string{"review", "--help"}, &reviewHelp, io.Discard, dependencies{}); exit != 0 {
-		t.Fatalf("review help exit = %d", exit)
-	}
-	var configHelp bytes.Buffer
-	if exit := run(t.Context(), []string{"config", "--help"}, &configHelp, io.Discard, dependencies{}); exit != 0 {
-		t.Fatalf("config help exit = %d", exit)
-	}
+	reviewHelp := commandOutput(t, binary, "review", "--help")
+	configHelp := commandOutput(t, binary, "config", "--help")
 	for _, path := range paths {
 		helpFlags := map[string]bool{}
 		for _, line := range strings.Split(readFile(t, path), "\n") {
@@ -207,9 +207,9 @@ func TestSkillAutoreviewCommandsUseCurrentCLIFlags(t *testing.T) {
 			if len(fields) < 2 {
 				continue
 			}
-			help := reviewHelp.String()
+			help := reviewHelp
 			if fields[1] == "config" {
-				help = configHelp.String()
+				help = configHelp
 			}
 			clear(helpFlags)
 			for _, match := range regexp.MustCompile(`(?m)^  -([a-z][a-z0-9-]*)(?:[[:space:]]|$)`).FindAllStringSubmatch(help, -1) {
@@ -232,6 +232,16 @@ func TestSkillAutoreviewCommandsUseCurrentCLIFlags(t *testing.T) {
 			t.Fatalf("standalone skill retained legacy flag %s", deprecated)
 		}
 	}
+}
+
+func commandOutput(t *testing.T, name string, arguments ...string) string {
+	t.Helper()
+	command := exec.CommandContext(t.Context(), name, arguments...)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s %s: %v\n%s", name, strings.Join(arguments, " "), err, output)
+	}
+	return string(output)
 }
 
 func skillRoot(t *testing.T) string {
