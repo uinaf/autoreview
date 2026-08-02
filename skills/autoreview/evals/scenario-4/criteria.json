@@ -9,7 +9,7 @@
     {"name": "Focused cancellation test", "description": "The follow-up includes a focused test that proves the provider child terminates promptly", "max_score": 10},
     {"name": "Acceptance proof refreshed", "description": "The plan reruns relevant builder tests and the affected built-CLI cancellation smoke after the fix", "max_score": 10},
     {"name": "Same provider retained", "description": "The next review keeps the original provider rather than switching reviewers", "max_score": 10},
-    {"name": "Same target semantics", "description": "The next command reviews the same branch/base semantics against a newly frozen source", "max_score": 10},
+    {"name": "Fix included in branch target", "description": "The plan commits the accepted fix on the branch before reviewing the same branch/base semantics against a newly frozen source", "max_score": 10},
     {"name": "Same contract retained", "description": "The rerun passes the original acceptance criteria with --prompt", "max_score": 10},
     {"name": "Completion requires clean", "description": "The completion condition requires exit 0 with no accepted actionable findings", "max_score": 10}
   ]

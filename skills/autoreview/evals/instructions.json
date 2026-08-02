@@ -25,8 +25,8 @@
       "why_given": "new knowledge"
     },
     {
-      "instruction": "Honor provider, model, and reasoning-effort choices from the user or trusted configuration",
-      "original_snippets": "Honor provider, model, and reasoning-effort choices requested by the user or selected by trusted configuration. Pass explicit user model and effort choices with --model and --reasoning-effort.",
+      "instruction": "Honor provider, model, and reasoning-effort choices, with Cursor effort encoded only in its model ID",
+      "original_snippets": "Pass explicit user model and effort choices with --model and --reasoning-effort. Cursor is the exception: its effort is part of the model ID, so never pass a separate effort flag for Cursor.",
       "relevant_when": "Provider choice exists",
       "why_given": "preference"
     },
@@ -73,8 +73,8 @@
       "why_given": "preference"
     },
     {
-      "instruction": "Rerun with the same provider and task contract",
-      "original_snippets": "Rerun autoreview with the same provider, target semantics, and task contract.",
+      "instruction": "Include every accepted fix in the frozen target and rerun with the same provider and task contract",
+      "original_snippets": "Confirm every fix belongs to the next frozen target. For branch mode, commit fixes on the branch; for commit mode, amend them into the reviewed commit. Rerun autoreview with the same provider, target semantics, and task contract.",
       "relevant_when": "A fix changes the source",
       "why_given": "new knowledge"
     },

@@ -13,6 +13,11 @@ or claim consensus.
 | `claude` | `claude-opus-5` | `ANTHROPIC_API_KEY` | Effort supports `low`, `medium`, `high`, `xhigh`, or `max` |
 | `cursor` | `cursor-grok-4.5-high-fast` | `CURSOR_API_KEY` | Requires authorized web access; effort is encoded in the model ID |
 
+For Cursor, pass a requested compatible model with `--model` and never add
+`--reasoning-effort`. If the user requests Cursor plus a separate effort value
+without a compatible model ID, report the unsupported combination instead of
+guessing a model.
+
 All adapters capability-probe the installed executable and use one explicit
 model with no model fallback. A capability or authentication failure is an
 operational result, not permission to switch engines.

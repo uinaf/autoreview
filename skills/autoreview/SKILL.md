@@ -30,10 +30,13 @@ command -v trufflehog
 
 Honor provider, model, and reasoning-effort choices requested by the user or
 selected by trusted configuration. Pass explicit user model and effort choices
-with `--model` and `--reasoning-effort`; do not invent overrides. Otherwise
-choose one available harness that fits the task and state the choice. Never run
-a panel, silently switch providers, or retry a failure with another provider.
-Read [providers.md](references/providers.md) before choosing a provider or
+with `--model` and `--reasoning-effort`; do not invent overrides. Cursor is the
+exception: its effort is part of the model ID, so never pass a separate effort
+flag for Cursor. Report a separate Cursor effort choice as unsupported unless
+the user supplies a compatible model ID. Otherwise choose one available
+harness that fits the task and state the choice. Never run a panel, silently
+switch providers, or retry a failure with another provider. Read
+[providers.md](references/providers.md) before choosing a provider or
 overriding its defaults.
 
 Keep strict isolation and web access off unless the user explicitly authorizes
@@ -74,11 +77,16 @@ operational failure.
 2. Reject findings that are incorrect, out of scope, or already prevented by a
    stronger invariant; record the reason briefly.
 3. Apply the smallest accepted fix at the owning boundary.
-4. Rerun focused builder checks and any real-surface acceptance proof affected
+4. Confirm every fix belongs to the next frozen target. Local mode includes
+   worktree changes. For branch mode, commit fixes on the branch; for commit
+   mode, amend them into the reviewed commit. Commit or amend only when already
+   authorized; otherwise report the blocker. Never claim branch or commit
+   coverage while a fix exists only in the worktree.
+5. Rerun focused builder checks and any real-surface acceptance proof affected
    by the fix, then rerun autoreview with the same provider, target semantics,
    and task contract.
-5. If the CLI reports `source_changed`, discard the review and freeze a new run.
-6. Finish only after exit 0 with no accepted actionable findings, or report the
+6. If the CLI reports `source_changed`, discard the review and freeze a new run.
+7. Finish only after exit 0 with no accepted actionable findings, or report the
    precise operational blocker. Do not turn a failure into a clean verdict.
 
 ## Report reproducible CLI defects
