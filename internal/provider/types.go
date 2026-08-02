@@ -8,7 +8,10 @@ import (
 	"github.com/uinaf/autoreview/internal/protocol"
 )
 
-const DefaultCodexModel = "gpt-5.6-sol"
+const (
+	DefaultCodexModel  = "gpt-5.6-sol"
+	DefaultClaudeModel = "claude-opus-5"
+)
 
 type Request struct {
 	Prompt string

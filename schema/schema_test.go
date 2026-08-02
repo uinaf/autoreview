@@ -139,6 +139,30 @@ func TestCodexReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
 	}
 }
 
+func TestClaudeReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
+	t.Parallel()
+
+	data, err := contractschema.ClaudeReviewV1()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	definitions := requireObject(t, document["$defs"], "$defs")
+	relativePath := requireObject(t, definitions["relative_path"], "$defs.relative_path")
+	if _, ok := document["$schema"]; ok {
+		t.Fatal("Claude schema retained unsupported $schema URI")
+	}
+	if _, ok := relativePath["not"]; ok {
+		t.Fatal("Claude schema retained unsupported not keyword")
+	}
+	if relativePath["type"] != "string" || relativePath["pattern"] != `\S` {
+		t.Fatalf("Claude relative_path constraints = %+v", relativePath)
+	}
+}
+
 func requireObject(t *testing.T, value any, path string) map[string]any {
 	t.Helper()
 	object, ok := value.(map[string]any)
