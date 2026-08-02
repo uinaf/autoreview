@@ -5,8 +5,8 @@ description: "Runs one independent review of completed local changes, pull reque
 
 # Autoreview
 
-Use the installed `autoreview` binary as a second-model closeout. The CLI only
-reviews and reports; it never edits files, runs tests, commits, or pushes.
+Use the installed `autoreview` binary as a second-model closeout. It reports
+only; it never edits files, runs tests, commits, or pushes.
 
 ## Preconditions
 
@@ -72,8 +72,9 @@ operational failure.
 2. Reject findings that are incorrect, out of scope, or already prevented by a
    stronger invariant; record the reason briefly.
 3. Apply the smallest accepted fix at the owning boundary.
-4. Rerun focused builder checks, then rerun autoreview with the same provider,
-   target semantics, and task contract.
+4. Rerun focused builder checks and any real-surface acceptance proof affected
+   by the fix, then rerun autoreview with the same provider, target semantics,
+   and task contract.
 5. If the CLI reports `source_changed`, discard the review and freeze a new run.
 6. Finish only after exit 0 with no accepted actionable findings, or report the
    precise operational blocker. Do not turn a failure into a clean verdict.
@@ -100,5 +101,6 @@ For a reproducible non-security defect in autoreview itself:
 ## Final report
 
 Report the task-context sources, exact review command with sensitive values
-redacted, builder proof rerun, accepted and rejected findings, issue URL if one
-was safely created, and the final clean result or operational blocker.
+redacted, refreshed builder and real-surface proof, accepted and rejected
+findings, issue URL if one was safely created, and the final clean result or
+operational blocker.

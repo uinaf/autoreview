@@ -197,6 +197,7 @@ func TestSkillAutoreviewCommandsUseCurrentCLIFlags(t *testing.T) {
 		t.Fatalf("config help exit = %d", exit)
 	}
 	for _, path := range paths {
+		helpFlags := map[string]bool{}
 		for _, line := range strings.Split(readFile(t, path), "\n") {
 			line = strings.TrimSpace(line)
 			if !strings.HasPrefix(line, "autoreview ") {
@@ -210,12 +211,17 @@ func TestSkillAutoreviewCommandsUseCurrentCLIFlags(t *testing.T) {
 			if fields[1] == "config" {
 				help = configHelp.String()
 			}
+			clear(helpFlags)
+			for _, match := range regexp.MustCompile(`(?m)^  -([a-z][a-z0-9-]*)(?:[[:space:]]|$)`).FindAllStringSubmatch(help, -1) {
+				helpFlags[match[1]] = true
+			}
 			for _, field := range fields[2:] {
 				if !strings.HasPrefix(field, "--") {
 					continue
 				}
 				flagName := strings.TrimPrefix(strings.Trim(field, "`\"'"), "--")
-				if !strings.Contains(help, "-"+flagName) {
+				flagName, _, _ = strings.Cut(flagName, "=")
+				if !helpFlags[flagName] {
 					t.Fatalf("%s documents unknown %s flag %q", path, fields[1], flagName)
 				}
 			}
