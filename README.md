@@ -25,7 +25,9 @@ mise run verify
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull-request workflow and
-[NOTICE](NOTICE) for upstream provenance.
+[NOTICE](NOTICE) for upstream provenance. The
+[migration matrix](docs/MIGRATION.md) tracks Python-to-Go behavior, and the
+[result protocol](docs/RESULT_SCHEMA.md) defines the versioned machine contract.
 
 ## License
 

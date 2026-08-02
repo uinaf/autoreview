@@ -1,0 +1,63 @@
+{
+  "schema_version": "1",
+  "status": "findings",
+  "review": {
+    "findings": [
+      {
+        "title": "Cancellation leaves the child process running",
+        "body": "The cancellation branch returns without terminating the provider process.",
+        "priority": "P1",
+        "confidence": 0.98,
+        "category": "bug",
+        "location": {
+          "file_path": "internal/provider/run.go",
+          "start_line": 12,
+          "end_line": 14
+        }
+      }
+    ],
+    "overall_explanation": "The process lifecycle has one actionable defect.",
+    "overall_confidence": 0.96
+  },
+  "failure": null,
+  "metadata": {
+    "target": {
+      "mode": "branch",
+      "snapshot_hash": "sha256:findings-fixture",
+      "head_revision": "fedcba9876543210",
+      "base_revision": "origin/main",
+      "commit_revision": "",
+      "files": [
+        {
+          "file_path": "internal/provider/run.go",
+          "line_ranges": [
+            {
+              "start_line": 10,
+              "end_line": 20
+            }
+          ]
+        }
+      ]
+    },
+    "provider": {
+      "name": "claude",
+      "model": "claude-opus-5",
+      "version": "2.1.220"
+    },
+    "attempts": [
+      {
+        "number": 1,
+        "outcome": "valid",
+        "duration_ms": 2100,
+        "error_class": null
+      }
+    ],
+    "duration_ms": 2200,
+    "isolation": "native",
+    "web_access": false,
+    "protocol_recovery": {
+      "applied": false,
+      "strategy": null
+    }
+  }
+}
