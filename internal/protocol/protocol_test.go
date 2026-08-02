@@ -104,6 +104,20 @@ func TestDecodeReportRejectsInvalidContracts(t *testing.T) {
 			wantErr: "must be a normalized repository-relative POSIX path",
 		},
 		{
+			name: "drive-relative location",
+			mutate: func(report map[string]any) {
+				asFindings(report)[0]["location"].(map[string]any)["file_path"] = "C:main.go"
+			},
+			wantErr: "must be a normalized repository-relative POSIX path",
+		},
+		{
+			name: "control character in location",
+			mutate: func(report map[string]any) {
+				asFindings(report)[0]["location"].(map[string]any)["file_path"] = "internal/\x01main.go"
+			},
+			wantErr: "must not contain control characters",
+		},
+		{
 			name: "unreviewed file",
 			mutate: func(report map[string]any) {
 				asFindings(report)[0]["location"].(map[string]any)["file_path"] = "other.go"
@@ -364,7 +378,17 @@ func TestReportValidateSemanticRules(t *testing.T) {
 				report.Metadata.Target.BaseRevision = "origin/main"
 				report.Metadata.Target.CommitRevision = ""
 			},
-			wantErr: "local target forbids base_revision",
+			wantErr: "local target requires head_revision and forbids base_revision",
+		},
+		{
+			name: "local target without head",
+			mutate: func(report *Report) {
+				report.Metadata.Target.Mode = TargetLocal
+				report.Metadata.Target.HeadRevision = ""
+				report.Metadata.Target.BaseRevision = ""
+				report.Metadata.Target.CommitRevision = ""
+			},
+			wantErr: "target.head_revision must be non-empty",
 		},
 		{
 			name: "commit target without commit",
@@ -373,6 +397,14 @@ func TestReportValidateSemanticRules(t *testing.T) {
 				report.Metadata.Target.CommitRevision = ""
 			},
 			wantErr: "commit target requires commit_revision",
+		},
+		{
+			name: "commit target with branch revisions",
+			mutate: func(report *Report) {
+				report.Metadata.Target.Mode = TargetCommit
+				report.Metadata.Target.CommitRevision = "abcdef"
+			},
+			wantErr: "forbids base_revision and head_revision",
 		},
 		{
 			name: "duplicate reviewed file",

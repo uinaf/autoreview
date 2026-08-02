@@ -28,6 +28,24 @@
     }
   },
   "$defs": {
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "\\S",
+      "not": {
+        "anyOf": [
+          { "pattern": "^/" },
+          { "pattern": "^[A-Za-z]:" },
+          { "pattern": "\\\\" },
+          { "pattern": "(^|/)\\.\\.(/|$)" },
+          { "pattern": "(^|/)\\.(/|$)" },
+          { "pattern": "//" },
+          { "pattern": "/$" },
+          { "pattern": "[\u0000-\u001F\u007F-\u009F]" }
+        ]
+      }
+    },
     "finding": {
       "type": "object",
       "additionalProperties": false,
@@ -74,11 +92,7 @@
           "additionalProperties": false,
           "required": ["file_path", "start_line", "end_line"],
           "properties": {
-            "file_path": {
-              "type": "string",
-              "minLength": 1,
-              "pattern": "\\S"
-            },
+            "file_path": { "$ref": "#/$defs/relative_path" },
             "start_line": {
               "type": "integer",
               "minimum": 1,

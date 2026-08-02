@@ -49,7 +49,10 @@ protocol recovery.
 
 Target modes are `local`, `branch`, and `commit`. The target carries a snapshot
 hash plus the exact reviewed files and inclusive line ranges. A provider cannot
-expand that boundary by returning another path or line.
+expand that boundary by returning another path or line. Local targets require a
+head revision and no base or commit revision. Branch targets require base and
+head revisions and no commit revision. Commit targets require only a commit
+revision.
 
 Attempts are numbered from one. `valid` attempts have no error class;
 `malformed` and `failed` attempts carry a stable failure class. Version 1
@@ -58,6 +61,12 @@ when the selected provider is Cursor. JSON numbers with an exact integer value,
 including `12.0` and `1.2e1`, are accepted for integer fields. Line and attempt
 numbers are capped at 2,147,483,647; millisecond durations are capped at the
 signed 64-bit maximum.
+
+The schema requires successful results to include non-null target, provider, and
+isolation metadata plus at least one attempt. Two ordered-array invariants are
+enforced by the Go decoder because standard JSON Schema cannot address an array
+element by its position from the end: attempt numbers are sequential from one,
+and the final attempt is `valid`.
 
 Failure classes are:
 

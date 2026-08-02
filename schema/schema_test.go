@@ -65,36 +65,80 @@ func TestFixturesValidateAgainstSchemas(t *testing.T) {
 	}
 }
 
-func TestSchemasRejectWhitespaceOnlyPaths(t *testing.T) {
+func TestSchemasRejectUnsafePaths(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("..", "internal", "protocol", "testdata", "report-findings.json"))
-	if err != nil {
-		t.Fatal(err)
+	reviewSchema := compileSchema(t, "review-v1.schema.json")
+	resultSchema := compileSchema(t, "result-v1.schema.json")
+	paths := []string{"   ", "/etc/passwd", "../../secret", "C:main.go", "C:/main.go", `a\b`, "a/../b", "a/./b", "a//b", "a/", "a/\x01b", "a/\u0085b"}
+	for _, invalidPath := range paths {
+		invalidPath := invalidPath
+		t.Run(invalidPath, func(t *testing.T) {
+			t.Parallel()
+			report := findingsInstance(t)
+			review := report["review"].(map[string]any)
+			finding := review["findings"].([]any)[0].(map[string]any)
+			finding["location"].(map[string]any)["file_path"] = invalidPath
+			if err := reviewSchema.Validate(review); err == nil {
+				t.Errorf("review schema accepted unsafe path %q", invalidPath)
+			}
+
+			report = findingsInstance(t)
+			metadata := report["metadata"].(map[string]any)
+			target := metadata["target"].(map[string]any)
+			reviewedFile := target["files"].([]any)[0].(map[string]any)
+			reviewedFile["file_path"] = invalidPath
+			if err := resultSchema.Validate(report); err == nil {
+				t.Errorf("result schema accepted unsafe path %q", invalidPath)
+			}
+		})
 	}
-	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
+}
+
+func TestResultSchemaRejectsIncompleteSuccessMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{name: "null target", mutate: func(metadata map[string]any) { metadata["target"] = nil }},
+		{name: "null provider", mutate: func(metadata map[string]any) { metadata["provider"] = nil }},
+		{name: "null isolation", mutate: func(metadata map[string]any) { metadata["isolation"] = nil }},
+		{name: "empty attempts", mutate: func(metadata map[string]any) { metadata["attempts"] = []any{} }},
 	}
-	report := instance.(map[string]any)
-	review := report["review"].(map[string]any)
-	finding := review["findings"].([]any)[0].(map[string]any)
-	finding["location"].(map[string]any)["file_path"] = "   "
-	if err := compileSchema(t, "review-v1.schema.json").Validate(review); err == nil {
-		t.Fatal("review schema accepted a whitespace-only finding path")
+	schema := compileSchema(t, "result-v1.schema.json")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			report := findingsInstance(t)
+			test.mutate(report["metadata"].(map[string]any))
+			if err := schema.Validate(report); err == nil {
+				t.Fatal("result schema accepted incomplete success metadata")
+			}
+		})
+	}
+}
+
+func TestResultSchemaRejectsAmbiguousTargetIdentity(t *testing.T) {
+	t.Parallel()
+
+	schema := compileSchema(t, "result-v1.schema.json")
+	report := findingsInstance(t)
+	target := report["metadata"].(map[string]any)["target"].(map[string]any)
+	target["mode"] = "local"
+	target["head_revision"] = ""
+	target["base_revision"] = ""
+	if err := schema.Validate(report); err == nil {
+		t.Fatal("result schema accepted a local target without head_revision")
 	}
 
-	instance, err = jsonschema.UnmarshalJSON(bytes.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-	report = instance.(map[string]any)
-	metadata := report["metadata"].(map[string]any)
-	target := metadata["target"].(map[string]any)
-	reviewedFile := target["files"].([]any)[0].(map[string]any)
-	reviewedFile["file_path"] = "   "
-	if err := compileSchema(t, "result-v1.schema.json").Validate(report); err == nil {
-		t.Fatal("result schema accepted a whitespace-only reviewed file path")
+	report = findingsInstance(t)
+	target = report["metadata"].(map[string]any)["target"].(map[string]any)
+	target["mode"] = "commit"
+	target["commit_revision"] = "abcdef"
+	if err := schema.Validate(report); err == nil {
+		t.Fatal("result schema accepted a commit target with branch revisions")
 	}
 }
 
@@ -105,6 +149,19 @@ func compileSchema(t *testing.T, name string) *jsonschema.Schema {
 		t.Fatalf("compile %s: %v", name, err)
 	}
 	return schema
+}
+
+func findingsInstance(t *testing.T) map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "internal", "protocol", "testdata", "report-findings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return instance.(map[string]any)
 }
 
 func references(value any) []string {

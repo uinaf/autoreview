@@ -3,8 +3,9 @@ package protocol
 const SchemaVersion = "1"
 
 const (
-	MaxLineNumber    = 1<<31 - 1
-	MaxAttemptNumber = 1<<31 - 1
+	MaxLineNumber     = 1<<31 - 1
+	MaxAttemptNumber  = 1<<31 - 1
+	MaxPathCharacters = 4096
 )
 
 type Status string

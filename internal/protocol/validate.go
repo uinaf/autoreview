@@ -5,6 +5,7 @@ import (
 	"math"
 	"path"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -135,21 +136,33 @@ func (target Target) validate() error {
 	switch target.Mode {
 	case TargetLocal:
 		if target.BaseRevision != "" || target.CommitRevision != "" {
-			return fmt.Errorf("local target forbids base_revision and commit_revision")
+			return fmt.Errorf("local target requires head_revision and forbids base_revision and commit_revision")
+		}
+		if err := boundedText("target.head_revision", target.HeadRevision, 4096); err != nil {
+			return err
 		}
 	case TargetBranch:
-		if target.BaseRevision == "" || target.HeadRevision == "" || target.CommitRevision != "" {
+		if target.CommitRevision != "" {
 			return fmt.Errorf("branch target requires base_revision and head_revision and forbids commit_revision")
 		}
+		if err := boundedText("target.base_revision", target.BaseRevision, 4096); err != nil {
+			return err
+		}
+		if err := boundedText("target.head_revision", target.HeadRevision, 4096); err != nil {
+			return err
+		}
 	case TargetCommit:
-		if target.CommitRevision == "" {
-			return fmt.Errorf("commit target requires commit_revision")
+		if target.BaseRevision != "" || target.HeadRevision != "" {
+			return fmt.Errorf("commit target requires commit_revision and forbids base_revision and head_revision")
+		}
+		if err := boundedText("target.commit_revision", target.CommitRevision, 4096); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("invalid target.mode %q", target.Mode)
 	}
-	if target.SnapshotHash == "" {
-		return fmt.Errorf("target.snapshot_hash must be non-empty")
+	if err := boundedText("target.snapshot_hash", target.SnapshotHash, 512); err != nil {
+		return err
 	}
 	if len(target.Files) == 0 {
 		return fmt.Errorf("target.files must not be empty")
@@ -280,9 +293,14 @@ func confidence(value float64) bool {
 }
 
 func validPath(value string) error {
-	volumePath := len(value) >= 3 && ((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':' && value[2] == '/'
-	if !utf8.ValidString(value) || strings.TrimSpace(value) == "" || strings.Contains(value, "\\") || strings.ContainsRune(value, 0) || strings.HasPrefix(value, "/") || volumePath || path.Clean(value) != value || value == "." {
+	volumePath := len(value) >= 2 && ((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':'
+	if !utf8.ValidString(value) || utf8.RuneCountInString(value) > MaxPathCharacters || strings.TrimSpace(value) == "" || strings.Contains(value, "\\") || strings.HasPrefix(value, "/") || volumePath || path.Clean(value) != value || value == "." {
 		return fmt.Errorf("must be a normalized repository-relative POSIX path")
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return fmt.Errorf("must not contain control characters")
+		}
 	}
 	for _, part := range strings.Split(value, "/") {
 		if part == ".." {

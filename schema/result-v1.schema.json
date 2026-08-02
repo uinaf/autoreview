@@ -91,6 +91,28 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": { "status": { "enum": ["clean", "findings"] } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "metadata": {
+            "properties": {
+              "target": { "$ref": "#/$defs/target" },
+              "provider": { "$ref": "#/$defs/provider" },
+              "isolation": { "enum": ["strict", "native"] },
+              "attempts": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/attempt" }
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -209,28 +231,64 @@
         },
         "snapshot_hash": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "\\S"
         },
-        "head_revision": { "type": "string" },
-        "base_revision": { "type": "string" },
-        "commit_revision": { "type": "string" },
+        "head_revision": { "type": "string", "maxLength": 4096 },
+        "base_revision": { "type": "string", "maxLength": 4096 },
+        "commit_revision": { "type": "string", "maxLength": 4096 },
         "files": {
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/reviewed_file" }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "local" } }, "required": ["mode"] },
+          "then": {
+            "properties": {
+              "head_revision": { "$ref": "#/$defs/revision" },
+              "base_revision": { "const": "" },
+              "commit_revision": { "const": "" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "branch" } }, "required": ["mode"] },
+          "then": {
+            "properties": {
+              "head_revision": { "$ref": "#/$defs/revision" },
+              "base_revision": { "$ref": "#/$defs/revision" },
+              "commit_revision": { "const": "" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "commit" } }, "required": ["mode"] },
+          "then": {
+            "properties": {
+              "head_revision": { "const": "" },
+              "base_revision": { "const": "" },
+              "commit_revision": { "$ref": "#/$defs/revision" }
+            }
+          }
+        }
+      ]
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "\\S"
     },
     "reviewed_file": {
       "type": "object",
       "additionalProperties": false,
       "required": ["file_path", "line_ranges"],
       "properties": {
-        "file_path": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "\\S"
-        },
+        "file_path": { "$ref": "review-v1.schema.json#/$defs/relative_path" },
         "line_ranges": {
           "type": "array",
           "minItems": 1,
