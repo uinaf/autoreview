@@ -204,7 +204,7 @@ func validateAttempts(attempts []Attempt) error {
 			return fmt.Errorf("attempt number must not exceed %d", MaxAttemptNumber)
 		}
 		if attempt.Number != index+1 {
-			return fmt.Errorf("attempt %d has non-sequential number %d", index, attempt.Number)
+			return fmt.Errorf("attempt %d has non-sequential number %d", index+1, attempt.Number)
 		}
 		if attempt.DurationMS < 0 {
 			return fmt.Errorf("attempt %d duration_ms must be non-negative", attempt.Number)
@@ -281,7 +281,7 @@ func confidence(value float64) bool {
 
 func validPath(value string) error {
 	volumePath := len(value) >= 3 && ((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':' && value[2] == '/'
-	if value == "" || strings.Contains(value, "\\") || strings.ContainsRune(value, 0) || strings.HasPrefix(value, "/") || volumePath || path.Clean(value) != value || value == "." {
+	if !utf8.ValidString(value) || strings.TrimSpace(value) == "" || strings.Contains(value, "\\") || strings.ContainsRune(value, 0) || strings.HasPrefix(value, "/") || volumePath || path.Clean(value) != value || value == "." {
 		return fmt.Errorf("must be a normalized repository-relative POSIX path")
 	}
 	for _, part := range strings.Split(value, "/") {

@@ -97,6 +97,13 @@ func TestDecodeReportRejectsInvalidContracts(t *testing.T) {
 			wantErr: "must be a normalized repository-relative POSIX path",
 		},
 		{
+			name: "whitespace-only location",
+			mutate: func(report map[string]any) {
+				asFindings(report)[0]["location"].(map[string]any)["file_path"] = "   "
+			},
+			wantErr: "must be a normalized repository-relative POSIX path",
+		},
+		{
 			name: "unreviewed file",
 			mutate: func(report map[string]any) {
 				asFindings(report)[0]["location"].(map[string]any)["file_path"] = "other.go"
@@ -137,7 +144,7 @@ func TestDecodeReportRejectsInvalidContracts(t *testing.T) {
 			mutate: func(report map[string]any) {
 				metadataMap(report)["attempts"].([]any)[0].(map[string]any)["number"] = float64(2)
 			},
-			wantErr: "non-sequential number 2",
+			wantErr: "attempt 1 has non-sequential number 2",
 		},
 		{
 			name: "strategy without recovery",
