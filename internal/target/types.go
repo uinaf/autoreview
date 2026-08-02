@@ -12,6 +12,7 @@ import (
 var (
 	ErrSourceChanged = errors.New("reviewed source changed")
 	ErrSecretFound   = errors.New("secret scan found credentials")
+	ErrSecretScan    = errors.New("secret scan failed")
 	ErrNoChanges     = errors.New("target has no changed files")
 )
 
@@ -128,6 +129,10 @@ type Bundle struct {
 
 func (bundle *Bundle) Payload() []byte {
 	return append([]byte(nil), bundle.payload...)
+}
+
+func (bundle *Bundle) Repository() string {
+	return bundle.repository
 }
 
 func (bundle *Bundle) Target() protocol.Target {
