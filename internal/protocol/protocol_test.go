@@ -320,6 +320,40 @@ func TestDecodeReview(t *testing.T) {
 	}
 }
 
+func TestDecodeReviewRejectsMalformedInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		data    string
+		wantErr string
+	}{
+		{
+			name:    "duplicate field",
+			data:    `{"findings":[],"findings":[],"overall_explanation":"x","overall_confidence":1}`,
+			wantErr: `duplicate field "findings"`,
+		},
+		{
+			name:    "multiple values",
+			data:    `{"findings":[],"overall_explanation":"x","overall_confidence":1}{}`,
+			wantErr: "unexpected JSON token after root value",
+		},
+		{
+			name:    "non-object root",
+			data:    `[]`,
+			wantErr: "review must be an object",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := DecodeReview([]byte(test.data)); err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("DecodeReview() error = %v, want substring %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
 func TestReportValidateSemanticRules(t *testing.T) {
 	t.Parallel()
 
@@ -486,7 +520,6 @@ func TestValidatedFixturesMarshalRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range []string{"report-clean.json", "report-findings.json", "report-failure.json"} {
-		name := name
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			data, err := os.ReadFile(filepath.Join("testdata", name))

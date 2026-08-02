@@ -8,6 +8,12 @@ import (
 	"unicode/utf8"
 )
 
+var (
+	reportShapeFields   = [...]string{"schema_version", "status", "review", "failure", "metadata"}
+	reviewShapeFields   = [...]string{"findings", "overall_explanation", "overall_confidence"}
+	metadataShapeFields = [...]string{"target", "provider", "attempts", "duration_ms", "isolation", "web_access", "protocol_recovery"}
+)
+
 func DecodeReport(data []byte) (Report, error) {
 	if !utf8.Valid(data) {
 		return Report{}, fmt.Errorf("report contains invalid UTF-8")
@@ -63,7 +69,7 @@ func validateReportShape(data []byte) error {
 	if err := rejectDuplicateKeys(data); err != nil {
 		return err
 	}
-	root, err := object(data, "report", "schema_version", "status", "review", "failure", "metadata")
+	root, err := object(data, "report", reportShapeFields[:]...)
 	if err != nil {
 		return err
 	}
@@ -91,7 +97,7 @@ func validateReviewShape(data []byte, path string) error {
 	if err := rejectDuplicateKeys(data); err != nil {
 		return err
 	}
-	review, err := object(data, path, "findings", "overall_explanation", "overall_confidence")
+	review, err := object(data, path, reviewShapeFields[:]...)
 	if err != nil {
 		return err
 	}
@@ -123,7 +129,7 @@ func validateReviewShape(data []byte, path string) error {
 }
 
 func validateMetadataShape(data []byte) error {
-	metadata, err := object(data, "report.metadata", "target", "provider", "attempts", "duration_ms", "isolation", "web_access", "protocol_recovery")
+	metadata, err := object(data, "report.metadata", metadataShapeFields[:]...)
 	if err != nil {
 		return err
 	}

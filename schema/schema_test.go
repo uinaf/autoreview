@@ -41,7 +41,6 @@ func TestFixturesValidateAgainstSchemas(t *testing.T) {
 	resultSchema := compileSchema(t, "result-v1.schema.json")
 	reviewSchema := compileSchema(t, "review-v1.schema.json")
 	for _, name := range []string{"report-clean.json", "report-findings.json", "report-failure.json"} {
-		name := name
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			data, err := os.ReadFile(filepath.Join("..", "internal", "protocol", "testdata", name))
