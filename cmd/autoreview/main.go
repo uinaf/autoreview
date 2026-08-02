@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -29,7 +30,7 @@ func main() {
 func run(ctx context.Context, arguments []string, stdout, stderr io.Writer, dependencies dependencies) int {
 	if len(arguments) == 1 && (arguments[0] == "--version" || arguments[0] == "version") {
 		if _, err := fmt.Fprintln(stdout, buildinfo.Version()); err != nil {
-			fmt.Fprintf(stderr, "write version: %v\n", err)
+			report(stderr, "write version: %v\n", err)
 			return 2
 		}
 		return 0
@@ -37,7 +38,7 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer, depe
 	if len(arguments) > 0 && arguments[0] == "config" {
 		return runConfig(ctx, arguments[1:], stdout, stderr, dependencies)
 	}
-	fmt.Fprintln(stderr, "usage: autoreview --version | autoreview config [options]")
+	report(stderr, "usage: autoreview --version | autoreview config [options]\n")
 	return 2
 }
 
@@ -55,10 +56,13 @@ func runConfig(ctx context.Context, arguments []string, stdout, stderr io.Writer
 	webAccess := flags.Bool("web-access", false, "allow provider web access")
 	jsonOutput := flags.Bool("json", false, "print effective config as JSON")
 	if err := flags.Parse(arguments); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "autoreview config does not accept positional arguments")
+		report(stderr, "autoreview config does not accept positional arguments\n")
 		return 2
 	}
 	visited := map[string]bool{}
@@ -78,7 +82,7 @@ func runConfig(ctx context.Context, arguments []string, stdout, stderr io.Writer
 	if visited["timeout"] {
 		value, err := time.ParseDuration(*timeoutText)
 		if err != nil {
-			fmt.Fprintf(stderr, "flag timeout: %v\n", err)
+			report(stderr, "flag timeout: %v\n", err)
 			return 2
 		}
 		overrides.Timeout = &value
@@ -103,14 +107,14 @@ func runConfig(ctx context.Context, arguments []string, stdout, stderr io.Writer
 		HomeDir:    dependencies.homeDir,
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "config: %v\n", err)
+		report(stderr, "config: %v\n", err)
 		return 2
 	}
 	if *jsonOutput {
 		encoder := json.NewEncoder(stdout)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(effective); err != nil {
-			fmt.Fprintf(stderr, "encode effective config: %v\n", err)
+			report(stderr, "encode effective config: %v\n", err)
 			return 2
 		}
 		return 0
@@ -131,11 +135,15 @@ func runConfig(ctx context.Context, arguments []string, stdout, stderr io.Writer
 	}
 	for _, value := range values {
 		if err := writeConfigValue(stdout, value.name, value.value, value.source); err != nil {
-			fmt.Fprintf(stderr, "write effective config: %v\n", err)
+			report(stderr, "write effective config: %v\n", err)
 			return 2
 		}
 	}
 	return 0
+}
+
+func report(output io.Writer, format string, arguments ...any) {
+	_, _ = fmt.Fprintf(output, format, arguments...)
 }
 
 func writeConfigValue(output io.Writer, name, value string, source config.Source) error {

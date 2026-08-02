@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -91,6 +92,16 @@ func TestVersionCommandReportsOutputFailure(t *testing.T) {
 	var stderr bytes.Buffer
 	exit := run(context.Background(), []string{"--version"}, failingWriter{}, &stderr, dependencies{})
 	if exit != 2 || !strings.Contains(stderr.String(), "write version") {
+		t.Fatalf("run() exit = %d, stderr = %s", exit, stderr.String())
+	}
+}
+
+func TestConfigHelpIsSuccessful(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	exit := run(context.Background(), []string{"config", "--help"}, io.Discard, &stderr, dependencies{})
+	if exit != 0 || !strings.Contains(stderr.String(), "Usage of autoreview config") {
 		t.Fatalf("run() exit = %d, stderr = %s", exit, stderr.String())
 	}
 }

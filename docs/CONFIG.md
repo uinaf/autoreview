@@ -32,6 +32,11 @@ Unknown keys, multiple YAML documents, invalid types, and retry counts above one
 are errors. Configuration cannot contain commands, provider argument strings,
 or named profiles. There is no `.autoreview.local.yaml`.
 
+Each configuration file must be a regular file no larger than 64 KiB, and
+symbolic links are rejected. Boolean fields accept only `true` or `false`;
+`yes`, `no`, `on`, and `off` are invalid. A trusted account-home XDG file must
+also be owned by the current user and must not be group- or world-writable.
+
 The corresponding environment variables are `AUTOREVIEW_ENGINE`,
 `AUTOREVIEW_MODEL`, `AUTOREVIEW_REASONING_EFFORT`, `AUTOREVIEW_TIMEOUT`,
 `AUTOREVIEW_RETRIES`, `AUTOREVIEW_MAX_BYTES`, `AUTOREVIEW_ISOLATION`, and

@@ -194,6 +194,51 @@ func TestTrustedAccountHomeXDGRejectsParentSymlinkEscape(t *testing.T) {
 	}
 }
 
+func TestTrustedAccountHomeXDGRejectsOversizedAndWritableFiles(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name    string
+		content string
+		mode    os.FileMode
+	}{
+		{name: "oversized", content: strings.Repeat(" ", int(maximumConfigBytes)+1), mode: 0o600},
+		{name: "group writable", content: "engine: codex\n", mode: 0o620},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repository := configRepository(t)
+			home := t.TempDir()
+			path := filepath.Join(home, ".config", "autoreview", "config.yaml")
+			writeConfig(t, path, test.content)
+			if err := os.Chmod(path, test.mode); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Load(context.Background(), Options{
+				Repository: repository,
+				LookupEnv:  envLookup(nil),
+				HomeDir:    func() (string, error) { return home, nil },
+			})
+			if err == nil || !strings.Contains(err.Error(), "xdg config") {
+				t.Fatalf("Load() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestYAMLIntegersUseYAMLGrammar(t *testing.T) {
+	t.Parallel()
+
+	repository := configRepository(t)
+	writeConfig(t, filepath.Join(repository, ".autoreview.yaml"), "engine: codex\nretries: 0x1\nmax_bytes: 0x100000\n")
+	effective, err := loadWithoutUserConfig(t, repository, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if effective.Retries.Value != 1 || effective.MaxBytes.Value != 1048576 {
+		t.Fatalf("effective integers = retries %d, max_bytes %d", effective.Retries.Value, effective.MaxBytes.Value)
+	}
+}
+
 func TestYAMLRejectsCoercedScalarsAndNulls(t *testing.T) {
 	t.Parallel()
 

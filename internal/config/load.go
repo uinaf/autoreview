@@ -63,7 +63,7 @@ func (value *yamlInt) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.ScalarNode || node.Tag != "!!int" {
 		return fmt.Errorf("must be an integer, got %s", node.ShortTag())
 	}
-	parsed, err := strconv.ParseInt(node.Value, 10, 64)
+	parsed, err := strconv.ParseInt(node.Value, 0, 64)
 	if err != nil {
 		return fmt.Errorf("invalid integer: %w", err)
 	}
@@ -155,11 +155,11 @@ func resolveXDGPath(lookup func(string) (string, bool), homeDir func() (string, 
 	return filepath.Join(home, ".config", "autoreview", "config.yaml"), home, true, nil
 }
 
-func applyFile(effective *Effective, path string, source Source, allowCapabilities bool, trustedRoot, repositoryRoot string) error {
+func applyFile(effective *Effective, path string, source Source, allowCapabilities bool, trustedRoot, repositoryPath string) error {
 	var content []byte
 	var err error
 	if source == SourceXDG && allowCapabilities {
-		content, err = readTrustedConfigFile(path, trustedRoot, repositoryRoot)
+		content, err = readTrustedConfigFile(path, trustedRoot, repositoryPath)
 	} else {
 		content, err = readUntrustedConfigFile(path)
 	}
@@ -317,7 +317,10 @@ func applyRaw(effective *Effective, raw rawConfig, source Source, allowCapabilit
 		effective.ReasoningEffort = Value[ReasoningEffort]{Value: ReasoningEffort(raw.ReasoningEffort.value), Source: source}
 	}
 	if raw.Timeout.set {
-		parsed, _ := time.ParseDuration(raw.Timeout.value)
+		parsed, err := time.ParseDuration(raw.Timeout.value)
+		if err != nil {
+			return fmt.Errorf("%s timeout: %w", source, err)
+		}
 		effective.Timeout = Value[Duration]{Value: Duration(parsed), Source: source}
 	}
 	if raw.Retries.set {
