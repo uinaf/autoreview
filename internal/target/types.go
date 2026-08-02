@@ -12,6 +12,7 @@ import (
 var (
 	ErrSourceChanged = errors.New("reviewed source changed")
 	ErrSecretFound   = errors.New("secret scan found credentials")
+	ErrNoChanges     = errors.New("target has no changed files")
 )
 
 type Request struct {

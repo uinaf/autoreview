@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -25,6 +26,41 @@ type nulRecordWriter struct {
 	err    error
 }
 
+type lineRecordWriter struct {
+	buffer []byte
+	handle func([]byte) error
+	err    error
+}
+
+func (writer *lineRecordWriter) Write(data []byte) (int, error) {
+	for _, character := range data {
+		if writer.err != nil {
+			continue
+		}
+		if character == '\n' {
+			writer.err = writer.handle(writer.buffer)
+			writer.buffer = writer.buffer[:0]
+			continue
+		}
+		if len(writer.buffer) >= 512 {
+			writer.err = fmt.Errorf("git line record exceeds safe maximum")
+			continue
+		}
+		writer.buffer = append(writer.buffer, character)
+	}
+	return len(data), nil
+}
+
+func (writer *lineRecordWriter) Err() error {
+	if writer.err != nil {
+		return writer.err
+	}
+	if len(writer.buffer) != 0 {
+		return fmt.Errorf("git returned an unterminated line record")
+	}
+	return nil
+}
+
 func (writer *nulRecordWriter) Write(data []byte) (int, error) {
 	for _, character := range data {
 		if writer.err != nil {
@@ -36,7 +72,7 @@ func (writer *nulRecordWriter) Write(data []byte) (int, error) {
 			continue
 		}
 		if len(writer.buffer) >= 4*protocol.MaxPathCharacters+128 {
-			writer.err = fmt.Errorf("Git path record exceeds protocol maximum")
+			writer.err = fmt.Errorf("git path record exceeds protocol maximum")
 			continue
 		}
 		writer.buffer = append(writer.buffer, character)
@@ -49,7 +85,7 @@ func (writer *nulRecordWriter) Err() error {
 		return writer.err
 	}
 	if len(writer.buffer) != 0 {
-		return fmt.Errorf("Git returned unterminated path record")
+		return fmt.Errorf("git returned unterminated path record")
 	}
 	return nil
 }
@@ -57,7 +93,7 @@ func (writer *nulRecordWriter) Err() error {
 func (collector *Collector) validateTrackedWorktree(ctx context.Context, root string, plan *targetPlan) error {
 	flags := &nulRecordWriter{handle: func(raw []byte) error {
 		if len(raw) < 3 || raw[1] != ' ' {
-			return fmt.Errorf("Git returned malformed index flag record")
+			return fmt.Errorf("git returned malformed index flag record")
 		}
 		tag := raw[0]
 		if tag == 'S' || (tag >= 'a' && tag <= 'z') {
@@ -144,7 +180,7 @@ func (collector *Collector) newGitSandbox(ctx context.Context, root string) (_ *
 	if err := os.WriteFile(filepath.Join(directory, "HEAD"), []byte("ref: refs/heads/autoreview\n"), 0o600); err != nil {
 		return nil, fmt.Errorf("initialize isolated Git HEAD: %w", err)
 	}
-	if err := copyStableFile(filepath.Dir(originalIndex), filepath.Base(originalIndex), filepath.Join(directory, "index")); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := copyStableFile(filepath.Dir(originalIndex), filepath.Base(originalIndex), filepath.Join(directory, "index"), MaximumMaxBytes); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("copy Git index: %w", err)
 	}
 	excludeRoot := filepath.Dir(filepath.Dir(originalExclude))
@@ -152,7 +188,7 @@ func (collector *Collector) newGitSandbox(ctx context.Context, root string) (_ *
 	if err != nil {
 		return nil, fmt.Errorf("resolve Git exclude path: %w", err)
 	}
-	if err := copyStableFile(excludeRoot, filepath.ToSlash(excludeRelative), filepath.Join(directory, "info", "exclude")); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := copyStableFile(excludeRoot, filepath.ToSlash(excludeRelative), filepath.Join(directory, "info", "exclude"), metadataLimit); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("copy Git excludes: %w", err)
 	}
 
@@ -174,7 +210,7 @@ func (collector *Collector) newGitSandbox(ctx context.Context, root string) (_ *
 	}
 	sandbox.attributeSource = strings.TrimSpace(string(emptyTree))
 	if !validObjectID(sandbox.attributeSource) {
-		return nil, fmt.Errorf("Git returned invalid empty-tree object ID")
+		return nil, fmt.Errorf("git returned invalid empty-tree object ID")
 	}
 	head, unborn, err := collector.resolveHEAD(ctx, root)
 	if err != nil {
@@ -201,7 +237,7 @@ func rejectSplitIndex(path, objectFormat string) error {
 	if err != nil {
 		return fmt.Errorf("open copied Git index: %w", err)
 	}
-	defer index.Close()
+	defer func() { _ = index.Close() }()
 	info, err := index.Stat()
 	if err != nil {
 		return fmt.Errorf("inspect copied Git index: %w", err)
@@ -324,28 +360,34 @@ func (collector *Collector) gitMetadataPath(ctx context.Context, root, name stri
 	}
 	path := strings.TrimSpace(string(output))
 	if path == "" || !filepath.IsAbs(path) {
-		return "", fmt.Errorf("Git metadata path %q is not absolute", name)
+		return "", fmt.Errorf("git metadata path %q is not absolute", name)
 	}
 	return path, nil
 }
 
-func copyStableFile(root, relative, destination string) error {
+func copyStableFile(root, relative, destination string, limit int64) error {
 	input, before, err := openRegularFile(root, relative)
 	if err != nil {
 		return err
 	}
-	defer input.Close()
+	defer func() { _ = input.Close() }()
+	if before.Size() > limit {
+		return fmt.Errorf("file exceeds safe copy limit of %d bytes", limit)
+	}
 	output, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
-	_, copyErr := io.Copy(output, input)
+	written, copyErr := io.CopyN(output, input, limit+1)
 	closeErr := output.Close()
-	if copyErr != nil {
+	if copyErr != nil && !errors.Is(copyErr, io.EOF) {
 		return copyErr
 	}
 	if closeErr != nil {
 		return closeErr
+	}
+	if written > limit {
+		return fmt.Errorf("file exceeds safe copy limit of %d bytes", limit)
 	}
 	after, err := input.Stat()
 	if err != nil {
@@ -486,7 +528,12 @@ func (collector *Collector) untrackedFiles(ctx context.Context, root string, pla
 }
 
 func (collector *Collector) deletedFiles(ctx context.Context, root string, plan *targetPlan, blobs []deletedBlob, budget *byteBudget) (map[string][]byte, error) {
-	files := make(map[string][]byte, len(blobs))
+	files := map[string][]byte{}
+	if len(blobs) == 0 {
+		return files, nil
+	}
+	var checkInput bytes.Buffer
+	seen := make(map[string]struct{})
 	for _, blob := range blobs {
 		if err := protocolPath(blob.path); err != nil {
 			return nil, fmt.Errorf("deleted path %q: %w", blob.path, err)
@@ -497,47 +544,147 @@ func (collector *Collector) deletedFiles(ctx context.Context, root string, plan 
 		if !validObjectID(blob.oid) {
 			return nil, fmt.Errorf("deleted path %q has invalid blob ID", blob.path)
 		}
-		check, err := collector.git.runSandbox(ctx, root, plan.sandbox, []byte(blob.oid+"\n"), 128<<10, "cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)")
-		if err != nil {
-			return nil, fmt.Errorf("inspect deleted blob %q: %w", blob.path, err)
+		if _, exists := seen[blob.path]; exists {
+			return nil, fmt.Errorf("deleted path %q appears more than once", blob.path)
 		}
-		fields := strings.Fields(string(check))
+		seen[blob.path] = struct{}{}
+		_, _ = checkInput.WriteString(blob.oid)
+		_ = checkInput.WriteByte('\n')
+	}
+	materials := make([]deletedBlobMaterial, 0, len(blobs))
+	metadataIndex := 0
+	metadata := &lineRecordWriter{handle: func(record []byte) error {
+		if metadataIndex >= len(blobs) {
+			return fmt.Errorf("git returned excess deleted blob metadata")
+		}
+		blob := blobs[metadataIndex]
+		metadataIndex++
+		fields := strings.Fields(string(record))
 		if len(fields) != 3 || fields[0] != blob.oid || fields[1] != "blob" {
-			return nil, fmt.Errorf("Git returned invalid deleted blob metadata for %q", blob.path)
+			return fmt.Errorf("git returned invalid deleted blob metadata for %q", blob.path)
 		}
 		size, err := strconv.ParseInt(fields[2], 10, 64)
 		if err != nil || size < 0 {
-			return nil, fmt.Errorf("Git returned invalid deleted blob size for %q", blob.path)
+			return fmt.Errorf("git returned invalid deleted blob size for %q", blob.path)
 		}
-		remaining := budget.Remaining()
 		budget.Add("deleted:"+blob.path, size)
 		budget.AddFraming(sectionFramingBytes("UNTRUSTED-DELETED-FILE", blob.path, size))
-		if remaining < 0 || size > remaining {
-			continue
-		}
-		if size > int64(^uint64(0)>>1)-256 {
-			return nil, fmt.Errorf("deleted blob %q is too large", blob.path)
-		}
-		output, err := collector.git.runSandbox(ctx, root, plan.sandbox, []byte(blob.oid+"\n"), size+256, "cat-file", "--batch")
-		if err != nil {
-			return nil, fmt.Errorf("read deleted blob %q: %w", blob.path, err)
-		}
-		headerEnd := bytes.IndexByte(output, '\n')
-		if headerEnd < 0 || int64(len(output)-headerEnd-2) != size || output[len(output)-1] != '\n' {
-			return nil, fmt.Errorf("Git returned incomplete deleted blob %q", blob.path)
-		}
-		content := append([]byte(nil), output[headerEnd+1:len(output)-1]...)
-		if !utf8.Valid(content) || bytes.IndexByte(content, 0) >= 0 {
-			return nil, fmt.Errorf("deleted blob %q contains binary or invalid UTF-8 content", blob.path)
-		}
-		if _, exists := files[blob.path]; exists {
-			return nil, fmt.Errorf("deleted path %q appears more than once", blob.path)
-		}
 		if !budget.Exceeded() {
-			files[blob.path] = content
+			materials = append(materials, deletedBlobMaterial{deletedBlob: blob, size: size})
 		}
+		return nil
+	}}
+	if err := collector.git.runSandboxTo(ctx, root, plan.sandbox, checkInput.Bytes(), metadata, "cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)"); err != nil {
+		return nil, fmt.Errorf("inspect deleted blobs: %w", err)
+	}
+	if err := metadata.Err(); err != nil {
+		return nil, err
+	}
+	if metadataIndex != len(blobs) {
+		return nil, fmt.Errorf("git returned incomplete deleted blob metadata")
+	}
+	if len(materials) == 0 {
+		return files, nil
+	}
+	var contentInput bytes.Buffer
+	for _, material := range materials {
+		_, _ = contentInput.WriteString(material.oid)
+		_ = contentInput.WriteByte('\n')
+	}
+	content := newDeletedBatchWriter(materials, files)
+	if err := collector.git.runSandboxTo(ctx, root, plan.sandbox, contentInput.Bytes(), content, "cat-file", "--batch"); err != nil {
+		return nil, fmt.Errorf("read deleted blobs: %w", err)
+	}
+	if err := content.Err(); err != nil {
+		return nil, err
 	}
 	return files, nil
+}
+
+type deletedBlobMaterial struct {
+	deletedBlob
+	size int64
+}
+
+type deletedBatchWriter struct {
+	materials []deletedBlobMaterial
+	files     map[string][]byte
+	index     int
+	header    []byte
+	content   []byte
+	remaining int64
+	err       error
+}
+
+func newDeletedBatchWriter(materials []deletedBlobMaterial, files map[string][]byte) *deletedBatchWriter {
+	return &deletedBatchWriter{materials: materials, files: files, remaining: -1}
+}
+
+func (writer *deletedBatchWriter) Write(data []byte) (int, error) {
+	input := data
+	for len(input) > 0 && writer.err == nil {
+		if writer.index >= len(writer.materials) {
+			writer.err = fmt.Errorf("git returned excess deleted blob content")
+			break
+		}
+		material := writer.materials[writer.index]
+		if writer.remaining < 0 {
+			newline := bytes.IndexByte(input, '\n')
+			if newline < 0 {
+				if len(writer.header)+len(input) > 512 {
+					writer.err = fmt.Errorf("git deleted blob header exceeds safe maximum")
+					break
+				}
+				writer.header = append(writer.header, input...)
+				break
+			}
+			writer.header = append(writer.header, input[:newline]...)
+			input = input[newline+1:]
+			fields := strings.Fields(string(writer.header))
+			if len(fields) != 3 || fields[0] != material.oid || fields[1] != "blob" || fields[2] != strconv.FormatInt(material.size, 10) {
+				writer.err = fmt.Errorf("git returned invalid deleted blob header for %q", material.path)
+				break
+			}
+			writer.content = make([]byte, 0, int(material.size))
+			writer.remaining = material.size
+			writer.header = writer.header[:0]
+		}
+		if writer.remaining > 0 {
+			consume := int64(len(input))
+			if consume > writer.remaining {
+				consume = writer.remaining
+			}
+			writer.content = append(writer.content, input[:int(consume)]...)
+			input = input[int(consume):]
+			writer.remaining -= consume
+		}
+		if writer.remaining == 0 && len(input) > 0 {
+			if input[0] != '\n' {
+				writer.err = fmt.Errorf("git returned incomplete deleted blob %q", material.path)
+				break
+			}
+			input = input[1:]
+			if !utf8.Valid(writer.content) || bytes.IndexByte(writer.content, 0) >= 0 {
+				writer.err = fmt.Errorf("deleted blob %q contains binary or invalid UTF-8 content", material.path)
+				break
+			}
+			writer.files[material.path] = writer.content
+			writer.content = nil
+			writer.remaining = -1
+			writer.index++
+		}
+	}
+	return len(data), nil
+}
+
+func (writer *deletedBatchWriter) Err() error {
+	if writer.err != nil {
+		return writer.err
+	}
+	if writer.index != len(writer.materials) || writer.remaining != -1 || len(writer.header) != 0 {
+		return fmt.Errorf("git returned incomplete deleted blob content")
+	}
+	return nil
 }
 
 func (collector *Collector) sourceStateHash(ctx context.Context, root string, plan *targetPlan) (string, error) {
@@ -552,38 +699,80 @@ func (collector *Collector) sourceStateHash(ctx context.Context, root string, pl
 		worktreeBase = plan.attributes
 	}
 	hash := sha256.New()
-	_, _ = hash.Write(head)
-	_, _ = hash.Write([]byte{0})
-	index, err := os.Open(filepath.Join(plan.sandbox.directory, "index"))
-	if errors.Is(err, os.ErrNotExist) {
-		_, _ = hash.Write([]byte("no-index"))
-	} else if err != nil {
-		return "", fmt.Errorf("open copied index for fingerprint: %w", err)
-	} else {
-		if _, err := io.Copy(hash, index); err != nil {
-			index.Close()
-			return "", fmt.Errorf("fingerprint copied index: %w", err)
-		}
-		if err := index.Close(); err != nil {
-			return "", fmt.Errorf("close copied index: %w", err)
-		}
+	if err := hashSourceSection(hash, "head", func(output io.Writer) error {
+		_, err := output.Write(head)
+		return err
+	}); err != nil {
+		return "", fmt.Errorf("fingerprint head: %w", err)
 	}
-	_, _ = hash.Write([]byte{0})
-	if err := collector.git.runSandboxWithAttributesTo(ctx, root, plan.sandbox, nil, hash, "status", "--porcelain=v2", "-z", "--untracked-files=all"); err != nil {
+	if err := hashSourceSection(hash, "index", func(output io.Writer) (returnErr error) {
+		index, err := os.Open(filepath.Join(plan.sandbox.directory, "index"))
+		if errors.Is(err, os.ErrNotExist) {
+			_, err = io.WriteString(output, "no-index")
+			return err
+		}
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if closeErr := index.Close(); closeErr != nil {
+				returnErr = errors.Join(returnErr, closeErr)
+			}
+		}()
+		_, err = io.Copy(output, index)
+		return err
+	}); err != nil {
+		return "", fmt.Errorf("fingerprint copied index: %w", err)
+	}
+	if err := hashSourceSection(hash, "status", func(output io.Writer) error {
+		return collector.git.runSandboxWithAttributesTo(ctx, root, plan.sandbox, nil, output, "status", "--porcelain=v2", "-z", "--untracked-files=all")
+	}); err != nil {
 		return "", fmt.Errorf("fingerprint worktree: %w", err)
 	}
-	_, _ = hash.Write([]byte{0})
 	fingerprintPlan := &targetPlan{oldRevision: worktreeBase, local: true, sandbox: plan.sandbox, attributes: plan.attributes}
-	for _, arguments := range diffCommands(fingerprintPlan, "--binary", "--full-index") {
-		if err := collector.git.runSandboxWithAttributesTo(ctx, root, plan.sandbox, nil, hash, arguments...); err != nil {
+	for index, arguments := range diffCommands(fingerprintPlan, "--binary", "--full-index") {
+		if err := hashSourceSection(hash, "diff-"+strconv.Itoa(index), func(output io.Writer) error {
+			return collector.git.runSandboxWithAttributesTo(ctx, root, plan.sandbox, nil, output, arguments...)
+		}); err != nil {
 			return "", fmt.Errorf("fingerprint tracked worktree: %w", err)
 		}
-		_, _ = hash.Write([]byte{0})
 	}
-	if err := collector.git.runConfiguredTo(ctx, root, nil, hash, "", nil, "config", "list", "--local", "--null", "--includes"); err != nil {
+	if err := hashSourceSection(hash, "config", func(output io.Writer) error {
+		return collector.git.runConfiguredTo(ctx, root, nil, output, "", nil, "config", "list", "--local", "--null", "--includes")
+	}); err != nil {
 		return "", fmt.Errorf("fingerprint repository Git config: %w", err)
 	}
 	return "sha256:" + hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+type sourceSectionWriter struct {
+	hash  io.Writer
+	bytes uint64
+}
+
+func (writer *sourceSectionWriter) Write(data []byte) (int, error) {
+	written, err := writer.hash.Write(data)
+	writer.bytes += uint64(written)
+	return written, err
+}
+
+func hashSourceSection(destination io.Writer, label string, write func(io.Writer) error) error {
+	sectionHash := sha256.New()
+	section := &sourceSectionWriter{hash: sectionHash}
+	if err := write(section); err != nil {
+		return err
+	}
+	var frame [12]byte
+	binary.BigEndian.PutUint32(frame[:4], uint32(len(label)))
+	binary.BigEndian.PutUint64(frame[4:], section.bytes)
+	if _, err := destination.Write(frame[:]); err != nil {
+		return err
+	}
+	if _, err := io.WriteString(destination, label); err != nil {
+		return err
+	}
+	_, err := destination.Write(sectionHash.Sum(nil))
+	return err
 }
 
 func (collector *Collector) validateRepositoryConfig(ctx context.Context, root string) error {
@@ -611,7 +800,7 @@ func readContainedFile(root, relative string, retainLimit int64) ([]byte, int64,
 	if err != nil {
 		return nil, 0, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	if before.Size() > retainLimit {
 		after, err := file.Stat()
 		if err != nil {
@@ -648,11 +837,11 @@ func protocolPath(value string) error {
 
 func sensitivePath(value string) bool {
 	lower := strings.ToLower(value)
-	base := filepath.Base(lower)
-	if base == ".env" || strings.HasPrefix(base, ".env.") || base == ".npmrc" || base == ".pypirc" || base == ".netrc" || base == ".git-credentials" || base == "credentials.json" || base == "id_rsa" || base == "id_ed25519" || strings.HasSuffix(base, ".tfstate") || strings.HasSuffix(base, ".tfstate.backup") {
+	base := path.Base(lower)
+	if base == ".env" || strings.HasPrefix(base, ".env.") || base == ".envrc" || base == ".npmrc" || base == ".pypirc" || base == ".netrc" || base == ".pgpass" || base == ".git-credentials" || base == "credentials.json" || base == "id_rsa" || base == "id_ed25519" || base == "id_ecdsa" || base == "id_dsa" || strings.HasSuffix(base, ".tfstate") || strings.HasSuffix(base, ".tfstate.backup") {
 		return true
 	}
-	switch strings.ToLower(filepath.Ext(base)) {
+	switch path.Ext(base) {
 	case ".pem", ".key", ".p12", ".pfx", ".jks", ".keystore":
 		return true
 	default:

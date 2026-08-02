@@ -85,13 +85,13 @@ func (writer *diffWriter) TopContributors() []Contributor {
 	if writer.prefixBytes != 0 || len(writer.sectionBytes) != len(writer.paths) {
 		return []Contributor{{Name: "diff", Bytes: writer.total}}
 	}
-	top := make([]Contributor, 0, 5)
+	top := make([]Contributor, 0, len(writer.paths))
 	for index, path := range writer.paths {
 		top = append(top, Contributor{Name: "diff-section:" + path, Bytes: writer.sectionBytes[index]})
-		sort.Slice(top, func(i, j int) bool { return top[i].Bytes > top[j].Bytes })
-		if len(top) > 5 {
-			top = top[:5]
-		}
+	}
+	sort.SliceStable(top, func(i, j int) bool { return top[i].Bytes > top[j].Bytes })
+	if len(top) > 5 {
+		top = top[:5]
 	}
 	return top
 }
@@ -112,10 +112,22 @@ func parseDiffRanges(diff []byte, paths []string) (map[string][]protocol.LineRan
 			if matches == nil {
 				return nil, fmt.Errorf("malformed diff hunk header")
 			}
-			oldStart, _ := strconv.Atoi(matches[1])
-			oldCount := countField(matches[2])
-			newStart, _ := strconv.Atoi(matches[3])
-			newCount := countField(matches[4])
+			oldStart, err := lineField(matches[1], false)
+			if err != nil {
+				return nil, fmt.Errorf("diff hunk old start: %w", err)
+			}
+			oldCount, err := lineField(matches[2], true)
+			if err != nil {
+				return nil, fmt.Errorf("diff hunk old count: %w", err)
+			}
+			newStart, err := lineField(matches[3], false)
+			if err != nil {
+				return nil, fmt.Errorf("diff hunk new start: %w", err)
+			}
+			newCount, err := lineField(matches[4], true)
+			if err != nil {
+				return nil, fmt.Errorf("diff hunk new count: %w", err)
+			}
 			path := paths[section]
 			start := newStart
 			count := newCount
@@ -129,10 +141,10 @@ func parseDiffRanges(diff []byte, paths []string) (map[string][]protocol.LineRan
 			if start < 1 {
 				start = 1
 			}
-			end := start + count - 1
-			if end > protocol.MaxLineNumber {
+			if start > protocol.MaxLineNumber || count > protocol.MaxLineNumber || start > protocol.MaxLineNumber-count+1 {
 				return nil, fmt.Errorf("diff line range exceeds protocol maximum")
 			}
+			end := start + count - 1
 			ranges[path] = append(ranges[path], protocol.LineRange{StartLine: start, EndLine: end})
 		}
 	}
@@ -160,10 +172,16 @@ func mergeLineRanges(fileRanges []protocol.LineRange) []protocol.LineRange {
 	return merged
 }
 
-func countField(value string) int {
+func lineField(value string, optional bool) (int, error) {
 	if value == "" {
-		return 1
+		if optional {
+			return 1, nil
+		}
+		return 0, fmt.Errorf("missing value")
 	}
-	count, _ := strconv.Atoi(value)
-	return count
+	number, err := strconv.ParseInt(value, 10, 32)
+	if err != nil || number > protocol.MaxLineNumber {
+		return 0, fmt.Errorf("unparsable value")
+	}
+	return int(number), nil
 }

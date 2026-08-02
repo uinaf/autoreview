@@ -28,12 +28,15 @@ payload and typed metadata, not a path to the live checkout.
 
 The aggregate bundle limit defaults to 1 MiB and is configurable up to 1 GiB.
 An oversized target fails before provider execution, reports the largest byte
-contributors from a bounded streaming count, and is never chunked. Untracked
-deleted, untracked, and context reads share the same aggregate budget. Binary data, invalid UTF-8, sensitive paths,
+contributors from a bounded streaming count, and is never chunked. Deleted,
+untracked, and context reads share the same aggregate budget. Binary data,
+invalid UTF-8, sensitive paths,
 Git links, changed symlinks, symlink escapes, merge commits, unsafe revisions,
 FIFOs and other special files, context-path symlinks, and incomplete file reads
 fail closed. Git split indexes are rejected rather than copied into the isolated
 metadata directory.
+
+Target collection requires Git 2.41 or newer.
 
 The snapshot includes resolved Git identity plus the raw copied index, tracked working-tree,
 status, untracked target, prompt, and context state. Collection is repeated

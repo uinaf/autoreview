@@ -3,14 +3,15 @@ package target
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const diagnosticLimit = 8 << 10
@@ -18,6 +19,7 @@ const diagnosticLimit = 8 << 10
 var hardenedGitConfig = []string{
 	"-c", "core.hooksPath=/dev/null",
 	"-c", "core.fsmonitor=false",
+	"-c", "color.ui=never",
 	"-c", "core.autocrlf=false",
 	"-c", "core.safecrlf=false",
 	"-c", "core.quotePath=false",
@@ -56,7 +58,42 @@ func newGitClient(path string) (*gitClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve git path: %w", err)
 	}
-	return &gitClient{path: absolute}, nil
+	git := &gitClient{path: absolute}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	output, err := git.run(ctx, os.TempDir(), nil, 4<<10, "--version")
+	if err != nil {
+		return nil, fmt.Errorf("inspect git version: %w", err)
+	}
+	if err := requireGitVersion(string(output)); err != nil {
+		return nil, err
+	}
+	return git, nil
+}
+
+func requireGitVersion(output string) error {
+	const prefix = "git version "
+	value := strings.TrimSpace(output)
+	if !strings.HasPrefix(value, prefix) {
+		return fmt.Errorf("git returned an unrecognized version string")
+	}
+	fields := strings.Fields(strings.TrimPrefix(value, prefix))
+	if len(fields) == 0 {
+		return fmt.Errorf("git returned an unrecognized version string")
+	}
+	components := strings.Split(fields[0], ".")
+	if len(components) < 2 {
+		return fmt.Errorf("git returned an unrecognized version string")
+	}
+	major, majorErr := strconv.Atoi(components[0])
+	minor, minorErr := strconv.Atoi(components[1])
+	if majorErr != nil || minorErr != nil {
+		return fmt.Errorf("git returned an unrecognized version string")
+	}
+	if major < 2 || major == 2 && minor < 41 {
+		return fmt.Errorf("git 2.41 or newer is required; found %d.%d", major, minor)
+	}
+	return nil
 }
 
 func (git *gitClient) run(ctx context.Context, directory string, input []byte, outputLimit int64, arguments ...string) ([]byte, error) {
@@ -71,11 +108,8 @@ func (git *gitClient) runSandbox(ctx context.Context, directory string, sandbox 
 	return git.runConfigured(ctx, directory, input, outputLimit, "", sandbox.environment, arguments...)
 }
 
-func (git *gitClient) runSandboxWithAttributes(ctx context.Context, directory string, sandbox *gitSandbox, input []byte, outputLimit int64, arguments ...string) ([]byte, error) {
-	if !validObjectID(sandbox.attributeSource) {
-		return nil, fmt.Errorf("invalid attribute source object ID")
-	}
-	return git.runConfigured(ctx, directory, input, outputLimit, sandbox.attributeSource, sandbox.environment, arguments...)
+func (git *gitClient) runSandboxTo(ctx context.Context, directory string, sandbox *gitSandbox, input []byte, output io.Writer, arguments ...string) error {
+	return git.runConfiguredTo(ctx, directory, input, output, "", sandbox.environment, arguments...)
 }
 
 func (git *gitClient) runSandboxWithAttributesTo(ctx context.Context, directory string, sandbox *gitSandbox, input []byte, output io.Writer, arguments ...string) error {
@@ -98,10 +132,14 @@ func (git *gitClient) runConfigured(ctx context.Context, directory string, input
 }
 
 func (git *gitClient) runConfiguredTo(ctx context.Context, directory string, input []byte, stdout io.Writer, attributeSource string, extraEnvironment []string, arguments ...string) error {
-	args := append(append([]string(nil), hardenedGitConfig...), arguments...)
-	if attributeSource != "" {
-		args = append(append(append([]string(nil), hardenedGitConfig...), "--attr-source="+attributeSource), arguments...)
+	if len(arguments) == 0 {
+		return fmt.Errorf("git command requires a subcommand")
 	}
+	args := append([]string(nil), hardenedGitConfig...)
+	if attributeSource != "" {
+		args = append(args, "--attr-source="+attributeSource)
+	}
+	args = append(args, arguments...)
 	command := exec.CommandContext(ctx, git.path, args...)
 	command.Dir = directory
 	command.Env = append(hardenedEnvironment(), extraEnvironment...)
@@ -144,7 +182,7 @@ func hardenedEnvironment() []string {
 	for _, entry := range os.Environ() {
 		name, _, _ := strings.Cut(entry, "=")
 		upper := strings.ToUpper(name)
-		if strings.HasPrefix(upper, "GIT_") || upper == "LANG" || strings.HasPrefix(upper, "LC_") || upper == "DYLD_INSERT_LIBRARIES" || upper == "LD_PRELOAD" || upper == "TSAN_OPTIONS" {
+		if strings.HasPrefix(upper, "GIT_") || upper == "LANG" || strings.HasPrefix(upper, "LC_") || strings.HasPrefix(upper, "DYLD_") || strings.HasPrefix(upper, "LD_") || upper == "TSAN_OPTIONS" {
 			continue
 		}
 		environment = append(environment, entry)
@@ -218,12 +256,11 @@ func sanitizeDiagnostic(value string) string {
 		return character
 	}, value)
 	if len(value) > 2000 {
-		value = value[:2000]
+		cut := 2000
+		for cut > 0 && !utf8.RuneStart(value[cut]) {
+			cut--
+		}
+		value = value[:cut]
 	}
 	return value
-}
-
-func isOutputLimit(err error) bool {
-	var limitErr *outputLimitError
-	return errors.As(err, &limitErr)
 }

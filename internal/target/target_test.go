@@ -3,14 +3,17 @@ package target
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/uinaf/autoreview/internal/protocol"
 	"golang.org/x/sys/unix"
@@ -78,6 +81,32 @@ func TestFreezeLocalCapturesCompleteImmutableTarget(t *testing.T) {
 	writeFile(t, repository, "tracked.txt", "changed after freeze\n")
 	if err := bundle.VerifyUnchanged(context.Background()); !errors.Is(err, ErrSourceChanged) {
 		t.Fatalf("VerifyUnchanged() error = %v, want ErrSourceChanged", err)
+	}
+}
+
+func TestFreezeBatchesDeletedBlobReads(t *testing.T) {
+	t.Parallel()
+
+	repository := newRepository(t)
+	for index := 0; index < 20; index++ {
+		writeFile(t, repository, fmt.Sprintf("deleted-%02d.txt", index), fmt.Sprintf("deleted content %02d\n", index))
+	}
+	gitCommand(t, repository, "add", ".")
+	gitCommand(t, repository, "commit", "-m", "deleted fixtures")
+	for index := 0; index < 20; index++ {
+		if err := os.Remove(filepath.Join(repository, fmt.Sprintf("deleted-%02d.txt", index))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bundle, err := newCollector(t, &recordingScanner{}).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal})
+	if err != nil {
+		t.Fatalf("Freeze() error = %v", err)
+	}
+	payload := string(bundle.Payload())
+	for index := 0; index < 20; index++ {
+		if !strings.Contains(payload, fmt.Sprintf("deleted content %02d", index)) {
+			t.Errorf("payload omitted deleted blob %02d", index)
+		}
 	}
 }
 
@@ -495,7 +524,7 @@ func TestGitSandboxIgnoresRepositoryInfoAttributesAndFilterConfig(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sandbox.Close()
+	defer func() { _ = sandbox.Close() }()
 	plan, err := collector.plan(context.Background(), repository, Request{Mode: protocol.TargetLocal}, sandbox)
 	if err != nil {
 		t.Fatal(err)
@@ -603,6 +632,22 @@ func TestFreezeSupportsVersionFourIndex(t *testing.T) {
 	}
 }
 
+func TestFreezeSupportsSHA256Index(t *testing.T) {
+	t.Parallel()
+
+	repository := t.TempDir()
+	gitCommand(t, repository, "init", "-q", "--object-format=sha256", "-b", "main")
+	gitCommand(t, repository, "config", "user.name", "Autoreview Test")
+	gitCommand(t, repository, "config", "user.email", "autoreview@example.test")
+	writeFile(t, repository, "file.txt", "base\n")
+	gitCommand(t, repository, "add", ".")
+	gitCommand(t, repository, "commit", "-m", "base")
+	writeFile(t, repository, "file.txt", "changed\n")
+	if _, err := newCollector(t, &recordingScanner{}).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal}); err != nil {
+		t.Fatalf("Freeze() error = %v", err)
+	}
+}
+
 func TestFreezeRejectsPayloadExactlyOneByteOverLimit(t *testing.T) {
 	t.Parallel()
 
@@ -680,6 +725,152 @@ func TestParseDiffRangesIgnoresHeaderLikeHunkContent(t *testing.T) {
 	}
 	if _, exists := ranges["fake.txt"]; exists {
 		t.Fatalf("header-like hunk content created fake path: %v", ranges)
+	}
+}
+
+func TestParseDiffRangesRejectsOverflowingHunk(t *testing.T) {
+	t.Parallel()
+
+	diff := []byte("diff --git a/file.txt b/file.txt\n@@ -1 +999999999999999999999,2 @@\n")
+	if _, err := parseDiffRanges(diff, []string{"file.txt"}); err == nil || !strings.Contains(err.Error(), "diff hunk new start") {
+		t.Fatalf("parseDiffRanges() error = %v", err)
+	}
+}
+
+func TestCopyStableFileRejectsOversizeInput(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeFile(t, root, "source", "12345")
+	err := copyStableFile(root, "source", filepath.Join(t.TempDir(), "destination"), 4)
+	if err == nil || !strings.Contains(err.Error(), "safe copy limit") {
+		t.Fatalf("copyStableFile() error = %v", err)
+	}
+}
+
+func TestSensitivePathCoversCredentialSiblings(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{".envrc", ".pgpass", ".ssh/id_ecdsa", ".ssh/id_dsa"} {
+		if !sensitivePath(value) {
+			t.Errorf("sensitivePath(%q) = false", value)
+		}
+	}
+}
+
+func TestValidateRegularOrMissingRejectsMissingIntermediateDirectory(t *testing.T) {
+	t.Parallel()
+
+	if err := validateRegularOrMissingFile(t.TempDir(), "missing/file.txt"); err == nil {
+		t.Fatal("validateRegularOrMissingFile() accepted a missing intermediate directory")
+	}
+}
+
+func TestRequireGitVersion(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		output string
+		valid  bool
+	}{
+		{output: "git version 2.41.0", valid: true},
+		{output: "git version 2.55.0 (Apple Git-154)", valid: true},
+		{output: "git version 3.0.0", valid: true},
+		{output: "git version 2.40.9", valid: false},
+		{output: "not git", valid: false},
+	} {
+		err := requireGitVersion(test.output)
+		if (err == nil) != test.valid {
+			t.Errorf("requireGitVersion(%q) error = %v", test.output, err)
+		}
+	}
+}
+
+func TestSanitizeDiagnosticTruncatesOnRuneBoundary(t *testing.T) {
+	t.Parallel()
+
+	value := strings.Repeat("a", 1999) + "é" + "tail"
+	got := sanitizeDiagnostic(value)
+	if !utf8.ValidString(got) || got != strings.Repeat("a", 1999) {
+		t.Fatalf("sanitizeDiagnostic() produced invalid truncation of length %d", len(got))
+	}
+}
+
+func TestHardenedEnvironmentDropsDynamicLoaderVariables(t *testing.T) {
+	t.Setenv("LD_AUDIT", "/tmp/audit.so")
+	t.Setenv("LD_LIBRARY_PATH", "/tmp/lib")
+	t.Setenv("DYLD_FRAMEWORK_PATH", "/tmp/frameworks")
+
+	for _, entry := range hardenedEnvironment() {
+		name, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(name, "LD_") || strings.HasPrefix(name, "DYLD_") {
+			t.Errorf("hardenedEnvironment retained %q", name)
+		}
+	}
+}
+
+func TestGitClientRejectsEmptyCommand(t *testing.T) {
+	t.Parallel()
+
+	client, err := newGitClient("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.runConfiguredTo(context.Background(), t.TempDir(), nil, io.Discard, "", nil); err == nil || !strings.Contains(err.Error(), "requires a subcommand") {
+		t.Fatalf("runConfiguredTo() error = %v", err)
+	}
+}
+
+func TestFreezeIgnoresRepositoryColorConfiguration(t *testing.T) {
+	t.Parallel()
+
+	repository := committedRepository(t)
+	gitCommand(t, repository, "config", "color.ui", "always")
+	gitCommand(t, repository, "config", "color.diff", "always")
+	writeFile(t, repository, "file.txt", "changed\n")
+	if _, err := newCollector(t, &recordingScanner{}).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal}); err != nil {
+		t.Fatalf("Freeze() error = %v", err)
+	}
+}
+
+func TestScannerUsesSeparateHomeAndPreservesExitError(t *testing.T) {
+	t.Parallel()
+
+	script := filepath.Join(t.TempDir(), "trufflehog")
+	writeFile(t, filepath.Dir(script), filepath.Base(script), "#!/bin/sh\nfor last in \"$@\"; do :; done\nif [ \"$HOME\" = \"$last\" ]; then exit 6; fi\nexit 7\n")
+	if err := os.Chmod(script, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	scanner, err := newTruffleHogScanner(script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = scanner.Scan(context.Background(), []byte("benign"))
+	var exitError *exec.ExitError
+	if !errors.As(err, &exitError) || exitError.ExitCode() != 7 {
+		t.Fatalf("Scan() error = %v, want wrapped exit code 7", err)
+	}
+}
+
+func TestHashSourceSectionSeparatesEmbeddedNULBoundaries(t *testing.T) {
+	t.Parallel()
+
+	fingerprint := func(sections ...[]byte) []byte {
+		hash := sha256.New()
+		for index, section := range sections {
+			if err := hashSourceSection(hash, fmt.Sprintf("section-%d", index), func(output io.Writer) error {
+				_, err := output.Write(section)
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return hash.Sum(nil)
+	}
+	left := fingerprint([]byte{'a', 0}, []byte{'b'})
+	right := fingerprint([]byte{'a'}, []byte{0, 'b'})
+	if bytes.Equal(left, right) {
+		t.Fatal("source section framing did not separate embedded NUL boundaries")
 	}
 }
 
@@ -878,7 +1069,7 @@ func committedRepository(t *testing.T) string {
 
 func gitCommand(t *testing.T, repository string, arguments ...string) string {
 	t.Helper()
-	command := exec.Command("git", arguments...)
+	command := exec.CommandContext(t.Context(), "git", arguments...)
 	command.Dir = repository
 	command.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
 	output, err := command.CombinedOutput()

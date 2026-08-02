@@ -3,6 +3,7 @@ package target
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,12 +31,28 @@ func newTruffleHogScanner(path string) (*truffleHogScanner, error) {
 	return &truffleHogScanner{path: absolute}, nil
 }
 
-func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) error {
-	directory, err := os.MkdirTemp("", "autoreview-scan-")
+func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (returnErr error) {
+	root, err := os.MkdirTemp("", "autoreview-scan-")
 	if err != nil {
 		return fmt.Errorf("create secret-scan directory: %w", err)
 	}
-	defer os.RemoveAll(directory)
+	defer func() {
+		if removeErr := os.RemoveAll(root); removeErr != nil {
+			cleanupErr := fmt.Errorf("remove secret-scan directory: %w", removeErr)
+			if returnErr == nil {
+				returnErr = cleanupErr
+			} else {
+				returnErr = errors.Join(returnErr, cleanupErr)
+			}
+		}
+	}()
+	directory := filepath.Join(root, "input")
+	home := filepath.Join(root, "home")
+	for _, path := range []string{directory, home} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			return fmt.Errorf("create secret-scan directory: %w", err)
+		}
+	}
 	path := filepath.Join(directory, "frozen-review.txt")
 	if err := os.WriteFile(path, payload, 0o600); err != nil {
 		return fmt.Errorf("write secret-scan input: %w", err)
@@ -53,7 +70,7 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) erro
 		"--concurrency=1",
 		directory,
 	)
-	command.Env = hardenedScannerEnvironment(directory)
+	command.Env = hardenedScannerEnvironment(home)
 	command.WaitDelay = 2 * time.Second
 	stdout := newLimitBuffer(1 << 20)
 	stderr := newLimitBuffer(diagnosticLimit)
@@ -73,7 +90,11 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) erro
 		return ErrSecretFound
 	}
 	if err != nil {
-		return fmt.Errorf("trufflehog scan failed: %s", sanitizeDiagnostic(strings.TrimSpace(stderr.String())))
+		diagnostic := sanitizeDiagnostic(strings.TrimSpace(stderr.String()))
+		if diagnostic == "" {
+			diagnostic = "no diagnostic output"
+		}
+		return fmt.Errorf("trufflehog scan failed: %s: %w", diagnostic, err)
 	}
 	return nil
 }

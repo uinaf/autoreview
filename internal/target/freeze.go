@@ -62,10 +62,10 @@ func New(options Options) (*Collector, error) {
 }
 
 func (collector *Collector) Freeze(ctx context.Context, repository string, request Request) (*Bundle, error) {
+	request.ContextFiles = append([]string(nil), request.ContextFiles...)
 	if err := validateRequest(&request); err != nil {
 		return nil, err
 	}
-	request.ContextFiles = append([]string(nil), request.ContextFiles...)
 	root, err := collector.repositoryRoot(ctx, repository)
 	if err != nil {
 		return nil, err
@@ -178,7 +178,7 @@ func (collector *Collector) repositoryRoot(ctx context.Context, repository strin
 	}
 	relative, err := filepath.Rel(resolved, requested)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
-		return "", fmt.Errorf("Git worktree does not contain requested repository path")
+		return "", fmt.Errorf("git worktree does not contain requested repository path")
 	}
 	return resolved, nil
 }
@@ -191,7 +191,7 @@ func (collector *Collector) collect(ctx context.Context, root string, request Re
 	if err != nil {
 		return nil, err
 	}
-	defer sandbox.Close()
+	defer func() { _ = sandbox.Close() }()
 	plan, err := collector.plan(ctx, root, request, sandbox)
 	if err != nil {
 		return nil, err
@@ -298,7 +298,7 @@ func (collector *Collector) collect(ctx context.Context, root string, request Re
 		files = append(files, protocol.ReviewedFile{FilePath: path, LineRanges: lineRanges})
 	}
 	if len(files) == 0 {
-		return nil, fmt.Errorf("target has no changed files")
+		return nil, ErrNoChanges
 	}
 	plan.target.Files = files
 

@@ -14,10 +14,12 @@ run = "test -z \"$(gofmt -l .)\""
 
 [tasks.test]
 description = "Run unit tests"
+# Git-backed tests spawn many subprocesses; cap parallelism to avoid process exhaustion.
 run = "go test -p 4 -parallel 4 ./..."
 
 [tasks."test:race"]
 description = "Run unit tests with the race detector"
+# macOS TSan can crash when multiple Git subprocess tests run concurrently.
 run = "go test -race -p 1 -parallel 1 ./..."
 
 [tasks.vet]

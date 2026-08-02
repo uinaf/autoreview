@@ -3,6 +3,7 @@
 package target
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -17,7 +18,7 @@ func openRegularFile(root, relative string) (*os.File, os.FileInfo, error) {
 func validateRegularOrMissingFile(root, relative string) error {
 	file, _, err := walkRegularFile(root, relative, true)
 	if file != nil {
-		file.Close()
+		_ = file.Close()
 	}
 	return err
 }
@@ -36,7 +37,7 @@ func walkRegularFile(root, relative string, allowMissingFinal bool) (*os.File, o
 		next, openErr := unix.Openat(current, component, flags, 0)
 		_ = unix.Close(current)
 		if openErr != nil {
-			if allowMissingFinal && openErr == unix.ENOENT {
+			if allowMissingFinal && index+1 == len(components) && errors.Is(openErr, unix.ENOENT) {
 				return nil, nil, nil
 			}
 			return nil, nil, fmt.Errorf("no-follow open: %w", openErr)
@@ -50,11 +51,11 @@ func walkRegularFile(root, relative string, allowMissingFinal bool) (*os.File, o
 	}
 	info, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, nil, err
 	}
 	if !info.Mode().IsRegular() {
-		file.Close()
+		_ = file.Close()
 		return nil, nil, fmt.Errorf("not a regular file")
 	}
 	return file, info, nil

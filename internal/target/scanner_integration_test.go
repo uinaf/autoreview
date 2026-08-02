@@ -57,12 +57,15 @@ func TestCollectorRealRepositorySmoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	repository := filepath.Clean(filepath.Join("..", ".."))
+	repository := filepath.Join("..", "..")
 	bundle, err := collector.Freeze(context.Background(), repository, Request{
 		Mode:     protocol.TargetLocal,
 		Prompt:   "Review issue 3 target-boundary implementation.",
 		MaxBytes: 2 << 20,
 	})
+	if errors.Is(err, ErrNoChanges) {
+		t.Skip("current checkout has no local changes")
+	}
 	if err != nil {
 		t.Fatalf("Freeze() error = %v", err)
 	}
