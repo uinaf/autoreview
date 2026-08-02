@@ -29,7 +29,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull-request workflow and
 [migration matrix](docs/MIGRATION.md) tracks Python-to-Go behavior, and the
 [result protocol](docs/RESULT_SCHEMA.md) defines the versioned machine contract.
 The [target boundary](docs/TARGETS.md) documents frozen Git input and secret
-scanning.
+scanning. [Configuration and isolation](docs/CONFIG.md) defines the typed
+precedence rules, effective-config diagnostic, and strict/native provider
+workspace contract.
 
 ## License
 
