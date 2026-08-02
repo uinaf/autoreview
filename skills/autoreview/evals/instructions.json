@@ -67,8 +67,8 @@
       "why_given": "preference"
     },
     {
-      "instruction": "Apply only the smallest accepted fix and rerun focused builder checks",
-      "original_snippets": "Apply the smallest accepted fix at the owning boundary. Rerun focused builder checks.",
+      "instruction": "Apply only the smallest accepted fix and refresh affected builder and real-surface proof",
+      "original_snippets": "Apply the smallest accepted fix at the owning boundary. Rerun focused builder checks and any real-surface acceptance proof affected by the fix.",
       "relevant_when": "A finding is accepted",
       "why_given": "preference"
     },

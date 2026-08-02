@@ -1,5 +1,5 @@
 {
-  "context": "Tests whether findings are validated as hypotheses, a confirmed process leak is fixed with focused proof, a control-character claim is rejected against the validator invariant, and the same review is rerun.",
+  "context": "Tests whether findings are validated as hypotheses, a confirmed process leak is fixed with refreshed builder and real-surface proof, a control-character claim is rejected against the validator invariant, and the same review is rerun.",
   "type": "weighted_checklist",
   "checklist": [
     {"name": "Finding A accepted", "description": "triage.md accepts the child-process leak because the focused reproduction confirms it and the contract requires cancellation", "max_score": 10},
@@ -7,7 +7,7 @@
     {"name": "Rejection reason recorded", "description": "The report explicitly documents the stronger validator invariant rather than silently omitting Finding B", "max_score": 10},
     {"name": "Small owning-boundary fix", "description": "The implementation plan limits the accepted fix to provider process-tree cancellation or its owning boundary", "max_score": 10},
     {"name": "Focused cancellation test", "description": "The follow-up includes a focused test that proves the provider child terminates promptly", "max_score": 10},
-    {"name": "Builder checks rerun", "description": "The plan reruns relevant builder tests after the fix", "max_score": 10},
+    {"name": "Acceptance proof refreshed", "description": "The plan reruns relevant builder tests and the affected built-CLI cancellation smoke after the fix", "max_score": 10},
     {"name": "Same provider retained", "description": "The next review keeps the original provider rather than switching reviewers", "max_score": 10},
     {"name": "Same target semantics", "description": "The next command reviews the same branch/base semantics against a newly frozen source", "max_score": 10},
     {"name": "Same contract retained", "description": "The rerun passes the original acceptance criteria with --prompt", "max_score": 10},
