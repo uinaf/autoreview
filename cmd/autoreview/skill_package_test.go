@@ -65,10 +65,20 @@ func TestSkillPackageIsStandaloneAndPrivateDataFree(t *testing.T) {
 	privatePatterns := []*regexp.Regexp{
 		regexp.MustCompile(`/Users/[A-Za-z0-9._-]+`),
 		regexp.MustCompile(`/home/[A-Za-z0-9._-]+`),
-		regexp.MustCompile(`(?i)[a-z]:[\\/]users[\\/][A-Za-z0-9._-]+`),
+		regexp.MustCompile(`(?i)[a-z]:[\\/]+users[\\/]+[A-Za-z0-9._-]+`),
 		regexp.MustCompile(`file://`),
 		regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`),
 		regexp.MustCompile(`(?i)(api[_-]?key|access[_-]?token)=[^[:space:]]+`),
+	}
+	for _, privatePath := range []string{
+		"/Users/alice/project",
+		"/home/alice/project",
+		`C:\Users\alice\project`,
+		`C:\\Users\\alice\\project`,
+	} {
+		if !slices.ContainsFunc(privatePatterns, func(pattern *regexp.Regexp) bool { return pattern.MatchString(privatePath) }) {
+			t.Fatalf("private path pattern missed %q", privatePath)
+		}
 	}
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -117,6 +127,7 @@ func TestSkillEvalScenariosAreComplete(t *testing.T) {
 	if len(scenarios) != 12 {
 		t.Fatalf("scenario count = %d", len(scenarios))
 	}
+	capabilities := make([]string, len(scenarios))
 	for index := 0; index < len(scenarios); index++ {
 		directory := filepath.Join(evals, fmt.Sprintf("scenario-%d", index))
 		files, err := os.ReadDir(directory)
@@ -133,7 +144,8 @@ func TestSkillEvalScenariosAreComplete(t *testing.T) {
 		if !slices.Equal(names, []string{"capability.txt", "criteria.json", "task.md"}) {
 			t.Fatalf("scenario-%d files = %v", index, names)
 		}
-		if strings.TrimSpace(readFile(t, filepath.Join(directory, "capability.txt"))) == "" {
+		capabilities[index] = strings.TrimSpace(readFile(t, filepath.Join(directory, "capability.txt")))
+		if capabilities[index] == "" {
 			t.Fatalf("scenario-%d has empty capability", index)
 		}
 		task := readFile(t, filepath.Join(directory, "task.md"))
@@ -173,12 +185,23 @@ func TestSkillEvalScenariosAreComplete(t *testing.T) {
 			Tested  int `json:"instructions_tested"`
 			Percent int `json:"coverage_percentage"`
 		} `json:"instructions_coverage"`
-		ReasonDistribution map[string]int    `json:"reason_distribution"`
-		Scenarios          []json.RawMessage `json:"scenarios"`
+		ReasonDistribution map[string]int `json:"reason_distribution"`
+		Scenarios          []struct {
+			ID         string `json:"id"`
+			Capability string `json:"capability"`
+			Feasible   bool   `json:"feasible"`
+			Reason     string `json:"reason"`
+		} `json:"scenarios"`
 	}
 	decodeJSONFile(t, filepath.Join(evals, "summary.json"), &summary)
 	if summary.TotalScenarios != 12 || len(summary.Scenarios) != 12 || summary.Coverage.Total != 21 || summary.Coverage.Tested != 21 || summary.Coverage.Percent != 100 {
 		t.Fatalf("eval summary is inconsistent: %+v", summary)
+	}
+	for index, scenario := range summary.Scenarios {
+		expectedID := fmt.Sprintf("scenario-%d", index)
+		if scenario.ID != expectedID || scenario.Capability != capabilities[index] || !scenario.Feasible || strings.TrimSpace(scenario.Reason) == "" {
+			t.Fatalf("eval summary scenario-%d is inconsistent: %+v", index, scenario)
+		}
 	}
 }
 
