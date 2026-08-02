@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/uinaf/autoreview/internal/protocol"
 )
@@ -13,6 +14,8 @@ type Runtime struct {
 	Workspace string
 	root      string
 	env       []string
+	removeAll func(string) error
+	closeMu   sync.Mutex
 }
 
 func PrepareRuntime(effective Effective, parentEnvironment []string) (*Runtime, error) {
@@ -23,7 +26,7 @@ func PrepareRuntime(effective Effective, parentEnvironment []string) (*Runtime, 
 	if err != nil {
 		return nil, fmt.Errorf("create provider runtime: %w", err)
 	}
-	runtime := &Runtime{root: root, Workspace: filepath.Join(root, "workspace")}
+	runtime := &Runtime{root: root, Workspace: filepath.Join(root, "workspace"), removeAll: os.RemoveAll}
 	if err := os.Mkdir(runtime.Workspace, 0o700); err != nil {
 		_ = os.RemoveAll(root)
 		return nil, fmt.Errorf("create provider workspace: %w", err)
@@ -81,10 +84,18 @@ func (runtime *Runtime) Environment() []string {
 }
 
 func (runtime *Runtime) Close() error {
+	runtime.closeMu.Lock()
+	defer runtime.closeMu.Unlock()
 	if runtime.root == "" {
 		return nil
 	}
-	root := runtime.root
+	removeAll := runtime.removeAll
+	if removeAll == nil {
+		removeAll = os.RemoveAll
+	}
+	if err := removeAll(runtime.root); err != nil {
+		return fmt.Errorf("remove provider runtime: %w", err)
+	}
 	runtime.root = ""
-	return os.RemoveAll(root)
+	return nil
 }

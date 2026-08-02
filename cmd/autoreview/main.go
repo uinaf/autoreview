@@ -28,7 +28,10 @@ func main() {
 
 func run(ctx context.Context, arguments []string, stdout, stderr io.Writer, dependencies dependencies) int {
 	if len(arguments) == 1 && (arguments[0] == "--version" || arguments[0] == "version") {
-		fmt.Fprintln(stdout, buildinfo.Version())
+		if _, err := fmt.Fprintln(stdout, buildinfo.Version()); err != nil {
+			fmt.Fprintf(stderr, "write version: %v\n", err)
+			return 2
+		}
 		return 0
 	}
 	if len(arguments) > 0 && arguments[0] == "config" {

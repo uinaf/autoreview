@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -405,6 +406,72 @@ func TestPrepareNativeRuntimePreservesEnvironmentWithEmptyWorkspace(t *testing.T
 	entries, err := os.ReadDir(runtime.Workspace)
 	if err != nil || len(entries) != 0 {
 		t.Fatalf("workspace entries = %v, error = %v", entries, err)
+	}
+}
+
+func TestRuntimeCloseCanRetryAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	attempts := 0
+	runtime := &Runtime{
+		root: root,
+		removeAll: func(path string) error {
+			attempts++
+			if attempts == 1 {
+				return errors.New("injected cleanup failure")
+			}
+			return os.RemoveAll(path)
+		},
+	}
+	if err := runtime.Close(); err == nil || !strings.Contains(err.Error(), "remove provider runtime") {
+		t.Fatalf("first Close() error = %v", err)
+	}
+	if runtime.root != root {
+		t.Fatalf("runtime root cleared after failed cleanup: %q", runtime.root)
+	}
+	if err := runtime.Close(); err != nil {
+		t.Fatalf("retry Close(): %v", err)
+	}
+	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("runtime root still exists: %v", err)
+	}
+	if err := runtime.Close(); err != nil || attempts != 2 {
+		t.Fatalf("idempotent Close() error = %v, attempts = %d", err, attempts)
+	}
+}
+
+func TestRuntimeCloseIsConcurrentAndIdempotent(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	attempts := 0
+	runtime := &Runtime{
+		root: root,
+		removeAll: func(path string) error {
+			attempts++
+			return os.RemoveAll(path)
+		},
+	}
+	const callers = 8
+	errors := make(chan error, callers)
+	var wait sync.WaitGroup
+	for range callers {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			errors <- runtime.Close()
+		}()
+	}
+	wait.Wait()
+	close(errors)
+	for err := range errors {
+		if err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	}
+	if attempts != 1 {
+		t.Fatalf("cleanup attempts = %d, want 1", attempts)
 	}
 }
 

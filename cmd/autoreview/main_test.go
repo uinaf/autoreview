@@ -85,6 +85,16 @@ func TestConfigCommandReportsPlainOutputFailure(t *testing.T) {
 	}
 }
 
+func TestVersionCommandReportsOutputFailure(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	exit := run(context.Background(), []string{"--version"}, failingWriter{}, &stderr, dependencies{})
+	if exit != 2 || !strings.Contains(stderr.String(), "write version") {
+		t.Fatalf("run() exit = %d, stderr = %s", exit, stderr.String())
+	}
+}
+
 type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) {
