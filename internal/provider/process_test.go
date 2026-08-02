@@ -5,7 +5,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -19,7 +21,7 @@ func TestRunProcessBoundsOutput(t *testing.T) {
 		Path:        script,
 		Directory:   t.TempDir(),
 		Environment: []string{"PATH=/usr/bin:/bin"},
-		Timeout:     time.Second,
+		Timeout:     5 * time.Second,
 		StdoutLimit: 8,
 		StderrLimit: 8,
 	})
@@ -84,28 +86,77 @@ func TestReadProviderResultUsesOriginalDescriptor(t *testing.T) {
 	}
 }
 
-func TestRunProcessTimeoutKillsChildProcessGroup(t *testing.T) {
-	t.Parallel()
-
+func TestRunProcessCancellationKillsChildProcessGroup(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "survived")
-	script := writeTestExecutable(t, "child", "#!/bin/sh\n(sleep 0.4; printf survived > "+shellQuote(marker)+") &\nwait\n")
+	childPID := filepath.Join(t.TempDir(), "child.pid")
+	script := writeTestExecutable(t, "child", "#!/bin/sh\n(sleep 10; printf survived > "+shellQuote(marker)+") &\nprintf '%s' \"$!\" > "+shellQuote(childPID)+"\nwait\n")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type readyResult struct {
+		pid string
+		err error
+	}
+	ready := make(chan readyResult, 1)
+	go func() {
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			content, err := os.ReadFile(childPID)
+			if err == nil && len(content) != 0 {
+				ready <- readyResult{pid: string(content)}
+				cancel()
+				return
+			}
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				ready <- readyResult{err: err}
+				cancel()
+				return
+			}
+			if time.Now().After(deadline) {
+				ready <- readyResult{err: errors.New("child did not become ready")}
+				cancel()
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
 	started := time.Now()
-	_, err := runProcess(context.Background(), processSpec{
+	_, err := runProcess(ctx, processSpec{
 		Path:        script,
 		Directory:   t.TempDir(),
 		Environment: []string{"PATH=/usr/bin:/bin"},
-		Timeout:     50 * time.Millisecond,
+		Timeout:     5 * time.Second,
 		StdoutLimit: 1024,
 		StderrLimit: 1024,
 	})
 	var failure *processError
-	if !errors.As(err, &failure) || failure.Kind != processTimeout {
+	if !errors.As(err, &failure) || failure.Kind != processCancelled {
 		t.Fatalf("runProcess() error = %v", err)
 	}
 	if time.Since(started) > 3*time.Second {
-		t.Fatalf("timeout cleanup took %s", time.Since(started))
+		t.Fatalf("cancellation cleanup took %s", time.Since(started))
 	}
-	time.Sleep(500 * time.Millisecond)
+	child := <-ready
+	if child.err != nil {
+		t.Fatal(child.err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(child.pid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		err := syscall.Kill(pid, 0)
+		if errors.Is(err, syscall.ESRCH) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("child process %d survived cancellation", pid)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("child process survived cancellation: %v", err)
 	}
