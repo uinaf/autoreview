@@ -1,0 +1,130 @@
+{
+  "instructions": [
+    {
+      "instruction": "Use only the installed autoreview binary and installed TruffleHog dependency",
+      "original_snippets": "Require the installed dependencies. Do not invoke source-tree internals or recreate the runtime in shell or Python.",
+      "relevant_when": "Starting any autoreview closeout",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Read authoritative task sources and pass a concise task contract with --prompt",
+      "original_snippets": "Distill a short task contract: objective, acceptance criteria, explicit non-goals, and source identifiers. Pass it with --prompt.",
+      "relevant_when": "Preparing a review",
+      "why_given": "preference"
+    },
+    {
+      "instruction": "Require completed builder checks before review",
+      "original_snippets": "Confirm the completed change already passed its builder-owned checks and relevant real-surface proof.",
+      "relevant_when": "Before invoking autoreview",
+      "why_given": "preference"
+    },
+    {
+      "instruction": "Choose exactly one provider and never fall back or run a panel",
+      "original_snippets": "Never run a panel, silently switch providers, or retry a failure with another provider.",
+      "relevant_when": "Selecting a review provider",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Honor provider, model, and reasoning-effort choices, with Cursor effort encoded only in its model ID",
+      "original_snippets": "Pass explicit user model and effort choices with --model and --reasoning-effort. Cursor is the exception: its effort is part of the model ID, so never pass a separate effort flag for Cursor.",
+      "relevant_when": "Provider choice exists",
+      "why_given": "preference"
+    },
+    {
+      "instruction": "Keep strict isolation and web access off without explicit or trusted authorization",
+      "original_snippets": "Keep strict isolation and web access off unless the user explicitly authorizes the capability or an ownership-checked account-home XDG config enables it.",
+      "relevant_when": "Considering elevated provider capabilities",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Choose local, branch, or commit mode from the actual target",
+      "original_snippets": "Choose the target that matches the actual change.",
+      "relevant_when": "Constructing the review command",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Use the real PR base and repository-relative context files",
+      "original_snippets": "Use the PR's real base revision. Add repeatable --context-file values only for existing repository-relative evidence.",
+      "relevant_when": "Reviewing a branch or adding context",
+      "why_given": "reminder"
+    },
+    {
+      "instruction": "Interpret exits 0, 1, and 2 as clean, findings, and operational failure, and allow all-rejected findings to close without a clean claim",
+      "original_snippets": "Finish after exit 0 with no findings, or after exit 1 only when every finding is explicitly rejected. Report exit 1 as findings, never clean. Exit 2 is an operational blocker.",
+      "relevant_when": "Handling CLI results",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Never filter valid findings by confidence",
+      "original_snippets": "Never filter findings by confidence.",
+      "relevant_when": "Reading findings",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Validate findings against the task contract, exact code, and sibling cases",
+      "original_snippets": "Treat findings as hypotheses. Check each against the authoritative contract, exact code, and same-scope sibling cases.",
+      "relevant_when": "A review returns findings",
+      "why_given": "preference"
+    },
+    {
+      "instruction": "Apply only the smallest accepted fix and refresh affected builder and real-surface proof",
+      "original_snippets": "Apply the smallest accepted fix at the owning boundary. Rerun focused builder checks and any real-surface acceptance proof affected by the fix.",
+      "relevant_when": "A finding is accepted",
+      "why_given": "preference"
+    },
+    {
+      "instruction": "Include every accepted fix in the frozen target and rerun with the same provider and task contract",
+      "original_snippets": "Confirm every fix belongs to the next frozen target. For branch mode, commit fixes on the branch; for commit mode, amend them into the reviewed commit. Rerun autoreview with the same provider, target semantics, and task contract.",
+      "relevant_when": "A fix changes the source",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Discard source_changed results and freeze a new run",
+      "original_snippets": "If the CLI reports source_changed, discard the review and freeze a new run.",
+      "relevant_when": "Source changes during review",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Retry only malformed protocol output and never other failures",
+      "original_snippets": "The CLI may make one configured protocol retry against the same frozen target. It never retries authentication, capability, timeout, cancellation, or provider process failures.",
+      "relevant_when": "A provider or protocol fails",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Do not manually recover ambiguous Cursor output",
+      "original_snippets": "Fences, ambiguous braces, JSON-value prefixes, multiple objects, and suffix prose fail closed.",
+      "relevant_when": "Cursor returns non-canonical output",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Do not bypass secret scanning or security refusals",
+      "original_snippets": "Do not bypass a secret-scan, sensitive-path, size, binary-data, symlink, revision, capability, isolation, or source-change refusal.",
+      "relevant_when": "Input collection fails closed",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Search existing issues before creating a sanitized public defect report",
+      "original_snippets": "Search open and closed issues in uinaf/autoreview.",
+      "relevant_when": "A reproducible non-security CLI defect is found",
+      "why_given": "preference"
+    },
+    {
+      "instruction": "Exclude sensitive review and provider data from public issues",
+      "original_snippets": "Never include frozen bundles, prompts, reviewed source, diffs, private paths, repository identities, credentials, environment dumps, or raw provider output.",
+      "relevant_when": "Preparing a public issue",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Route suspected vulnerabilities to private reporting",
+      "original_snippets": "Never open a public issue for a suspected vulnerability; use the repository's private vulnerability reporting path.",
+      "relevant_when": "The defect has security impact",
+      "why_given": "new knowledge"
+    },
+    {
+      "instruction": "Report sources, redacted command, verification, finding decisions, and final status",
+      "original_snippets": "Report the task-context sources, exact review command with sensitive values redacted, refreshed builder and real-surface proof, accepted and rejected findings, issue URL if one was safely created, and the final clean result, all-rejected findings result, or operational blocker.",
+      "relevant_when": "Closing out the workflow",
+      "why_given": "preference"
+    }
+  ]
+}

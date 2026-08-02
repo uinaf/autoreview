@@ -33,3 +33,12 @@ run = "go build ./cmd/autoreview"
 [tasks.verify]
 description = "Run deterministic repository verification"
 depends = ["fmt:check", "test", "test:race", "vet", "build"]
+
+[tasks."skill:review"]
+description = "Review the skill at the pinned Tessl quality threshold"
+run = '''
+set -e
+test "$(tessl --version)" = "0.94.0"
+TESSL_AUTO_UPDATE_INTERVAL_MINUTES=0 tessl skill lint skills/autoreview
+TESSL_AUTO_UPDATE_INTERVAL_MINUTES=0 tessl review run --workspace uinaf --force --threshold 100 --label autoreview-0.1.0-tessl-0.94.0 skills/autoreview
+'''

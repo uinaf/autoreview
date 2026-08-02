@@ -1,0 +1,16 @@
+{
+  "context": "Tests whether an authentication failure remains operational, is not retried by the protocol retry setting, does not trigger provider fallback, and is reported without clean-review claims.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {"name": "Failure verdict", "description": "failure-report.md states that exit 2 authentication means no trustworthy review result", "max_score": 10},
+    {"name": "No clean claim", "description": "The report does not describe the change as clean or reviewed successfully", "max_score": 10},
+    {"name": "No protocol retry", "description": "The plan states that retries=1 does not retry authentication failures", "max_score": 10},
+    {"name": "No automatic Claude rerun", "description": "The plan does not immediately rerun the same failed Claude authentication without a changed condition", "max_score": 10},
+    {"name": "No Codex fallback", "description": "The plan does not switch to installed Codex automatically", "max_score": 10},
+    {"name": "No Cursor fallback", "description": "The plan does not switch to Cursor automatically", "max_score": 10},
+    {"name": "Native requires authorization", "description": "Using the session-backed Claude login through native isolation is presented as an explicit user-authorized option", "max_score": 10},
+    {"name": "Credential option", "description": "Providing a supported Claude credential in strict mode is presented as another safe option", "max_score": 10},
+    {"name": "Builder proof separated", "description": "The report notes green tests without treating them as a substitute for independent review", "max_score": 10},
+    {"name": "Blocker reported", "description": "The final evidence is framed as an authentication blocker with zero model attempts, not a code finding", "max_score": 10}
+  ]
+}
