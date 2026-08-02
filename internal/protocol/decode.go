@@ -66,7 +66,7 @@ func decodeOne(data []byte, target any) error {
 }
 
 func validateReportShape(data []byte) error {
-	if err := rejectDuplicateKeys(data); err != nil {
+	if err := RejectDuplicateKeys(data); err != nil {
 		return err
 	}
 	root, err := object(data, "report", reportShapeFields[:]...)
@@ -94,7 +94,7 @@ func validateReportShape(data []byte) error {
 }
 
 func validateReviewShape(data []byte, path string) error {
-	if err := rejectDuplicateKeys(data); err != nil {
+	if err := RejectDuplicateKeys(data); err != nil {
 		return err
 	}
 	review, err := object(data, path, reviewShapeFields[:]...)
@@ -242,7 +242,7 @@ func nonNull(value map[string]json.RawMessage, path string, fields ...string) er
 	return nil
 }
 
-func rejectDuplicateKeys(data []byte) error {
+func RejectDuplicateKeys(data []byte) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	if err := walkJSONValue(decoder, "$"); err != nil {
 		return err

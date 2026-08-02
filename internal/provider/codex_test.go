@@ -1,0 +1,405 @@
+package provider
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/uinaf/autoreview/internal/config"
+	"github.com/uinaf/autoreview/internal/protocol"
+)
+
+func TestCodexReviewStrictUsesFrozenStdinAndCanonicalResult(t *testing.T) {
+	t.Parallel()
+
+	repository := t.TempDir()
+	fake := newFakeCodex(t, fakeCodexOptions{})
+	effective := codexConfig(protocol.IsolationStrict, false, 5*time.Second)
+	reviewer := NewCodex(CodexOptions{
+		Repository: repository,
+		Executable: fake.path,
+		Environment: []string{
+			"PATH=/usr/bin:/bin",
+			"OPENAI_API_KEY=test-provider-secret",
+			"ANTHROPIC_API_KEY=must-not-pass",
+			"HOME=/private/home",
+		},
+	})
+	result, err := reviewer.Review(context.Background(), Request{Prompt: "frozen review bundle", Config: effective})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Provider.Name != protocol.ProviderCodex || result.Provider.Model != "test-model" || result.Provider.Version != "0.146.0" {
+		t.Fatalf("provider = %+v", result.Provider)
+	}
+	if result.Attempt.Outcome != protocol.AttemptValid || result.Attempt.Number != 1 || result.ProtocolRecovery.Applied {
+		t.Fatalf("result metadata = %+v, %+v", result.Attempt, result.ProtocolRecovery)
+	}
+	if result.Isolation != protocol.IsolationStrict || result.WebAccess {
+		t.Fatalf("result policy = isolation %q, web %t", result.Isolation, result.WebAccess)
+	}
+	if len(result.Review.Findings) != 0 || result.Review.OverallExplanation != "No defects." {
+		t.Fatalf("review = %+v", result.Review)
+	}
+	if prompt := readTestFile(t, fake.prompt); prompt != "frozen review bundle" {
+		t.Fatalf("provider stdin = %q", prompt)
+	}
+	arguments := strings.Split(strings.TrimSpace(readTestFile(t, fake.arguments)), "\n")
+	for _, required := range []string{"--strict-config", "--sandbox", "read-only", "--ignore-user-config", "--ignore-rules", "--output-schema", "--output-last-message", `web_search="disabled"`, "features.multi_agent=false"} {
+		if !contains(arguments, required) {
+			t.Errorf("Codex arguments omitted %q: %v", required, arguments)
+		}
+	}
+	if indexOf(arguments, "--sandbox") < indexOf(arguments, "exec") {
+		t.Fatalf("strict sandbox flag was not scoped to exec: %v", arguments)
+	}
+	if contains(arguments, "--search") {
+		t.Fatalf("Codex arguments enabled web search: %v", arguments)
+	}
+	environment := readTestFile(t, fake.environment)
+	if !strings.Contains(environment, "OPENAI_API_KEY=test-provider-secret") || strings.Contains(environment, "ANTHROPIC_API_KEY") || strings.Contains(environment, "HOME=/private/home") {
+		t.Fatalf("strict environment = %s", environment)
+	}
+	workspace := strings.TrimSpace(readTestFile(t, fake.directory))
+	if _, err := os.Stat(workspace); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("provider workspace was not cleaned: %v", err)
+	}
+}
+
+func TestCodexReviewNativePreservesConfigurationAndEnablesWeb(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeCodex(t, fakeCodexOptions{})
+	effective := codexConfig(protocol.IsolationNative, true, 5*time.Second)
+	reviewer := NewCodex(CodexOptions{
+		Repository: t.TempDir(),
+		Executable: fake.path,
+		Environment: []string{
+			"PATH=/usr/bin:/bin",
+			"HOME=/native/home",
+			"CODEX_HOME=/native/codex",
+		},
+	})
+	if _, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: effective}); err != nil {
+		t.Fatal(err)
+	}
+	arguments := strings.Split(strings.TrimSpace(readTestFile(t, fake.arguments)), "\n")
+	for _, forbidden := range []string{"--strict-config", "--sandbox", "--ignore-user-config", "--ignore-rules", `web_search="disabled"`} {
+		if contains(arguments, forbidden) {
+			t.Errorf("native arguments retained %q: %v", forbidden, arguments)
+		}
+	}
+	if !contains(arguments, "--search") {
+		t.Fatalf("native arguments omitted --search: %v", arguments)
+	}
+	environment := readTestFile(t, fake.environment)
+	if !strings.Contains(environment, "HOME=/native/home") || !strings.Contains(environment, "CODEX_HOME=/native/codex") {
+		t.Fatalf("native environment = %s", environment)
+	}
+}
+
+func TestCodexReviewFailsCapabilityProbeBeforeInvocation(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeCodex(t, fakeCodexOptions{execHelp: "--ephemeral --skip-git-repo-check"})
+	reviewer := NewCodex(CodexOptions{
+		Repository:  t.TempDir(),
+		Executable:  fake.path,
+		Environment: []string{"PATH=/usr/bin:/bin", "OPENAI_API_KEY=test-provider-secret"},
+	})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
+	assertProviderError(t, err, protocol.FailureCapability)
+	if _, err := os.Stat(fake.arguments); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("model was invoked after failed capability probe: %v", err)
+	}
+}
+
+func TestCodexReviewReportsAuthenticationFailure(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeCodex(t, fakeCodexOptions{authError: "not logged in"})
+	reviewer := NewCodex(CodexOptions{
+		Repository:  t.TempDir(),
+		Executable:  fake.path,
+		Environment: []string{"PATH=/usr/bin:/bin", "HOME=/native/home"},
+	})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationNative, false, 5*time.Second)})
+	assertProviderError(t, err, protocol.FailureAuth)
+}
+
+func TestCodexReviewRedactsProviderFailure(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeCodex(t, fakeCodexOptions{reviewError: "\033[31mfailed with test-provider-secret\r"})
+	reviewer := NewCodex(CodexOptions{
+		Repository:  t.TempDir(),
+		Executable:  fake.path,
+		Environment: []string{"PATH=/usr/bin:/bin", "OPENAI_API_KEY=test-provider-secret"},
+	})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
+	failure := assertProviderError(t, err, protocol.FailureProvider)
+	if strings.Contains(failure.Message, "test-provider-secret") || strings.ContainsRune(failure.Message, '\x1b') || !strings.Contains(failure.Message, "[redacted]") {
+		t.Fatalf("provider failure = %q", failure.Message)
+	}
+	if failure.Attempt == nil || failure.Attempt.Outcome != protocol.AttemptFailed {
+		t.Fatalf("attempt = %+v", failure.Attempt)
+	}
+}
+
+func TestCodexReviewDistinguishesTimeoutAndCancellation(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name    string
+		timeout time.Duration
+		cancel  bool
+		class   protocol.FailureClass
+	}{
+		{name: "timeout", timeout: 80 * time.Millisecond, class: protocol.FailureTimeout},
+		{name: "cancelled", timeout: 5 * time.Second, cancel: true, class: protocol.FailureCancelled},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fake := newFakeCodex(t, fakeCodexOptions{delay: "0.5"})
+			reviewer := NewCodex(CodexOptions{
+				Repository:  t.TempDir(),
+				Executable:  fake.path,
+				Environment: []string{"PATH=/usr/bin:/bin", "OPENAI_API_KEY=test-provider-secret"},
+			})
+			ctx := context.Background()
+			if test.cancel {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				t.Cleanup(cancel)
+				go func() {
+					time.Sleep(50 * time.Millisecond)
+					cancel()
+				}()
+			}
+			_, err := reviewer.Review(ctx, Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, test.timeout)})
+			assertProviderError(t, err, test.class)
+		})
+	}
+}
+
+func TestCodexReviewRejectsMalformedOrInconsistentOutput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name    string
+		options fakeCodexOptions
+	}{
+		{name: "malformed review", options: fakeCodexOptions{result: `{"findings":[]}`}},
+		{name: "envelope mismatch", options: fakeCodexOptions{envelopeMessage: `{"findings":[],"overall_explanation":"Different.","overall_confidence":0.9}`}},
+		{name: "invalid envelope", options: fakeCodexOptions{rawEnvelope: "not-json\n"}},
+		{
+			name: "event after completion",
+			options: fakeCodexOptions{rawEnvelope: strings.Join([]string{
+				`{"type":"thread.started","thread_id":"fake-thread"}`,
+				`{"type":"turn.started"}`,
+				`{"type":"turn.completed"}`,
+				`{"type":"item.completed","item":{"type":"agent_message","text":"late"}}`,
+				"",
+			}, "\n")},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fake := newFakeCodex(t, test.options)
+			reviewer := NewCodex(CodexOptions{
+				Repository:  t.TempDir(),
+				Executable:  fake.path,
+				Environment: []string{"PATH=/usr/bin:/bin", "OPENAI_API_KEY=test-provider-secret"},
+			})
+			_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
+			failure := assertProviderError(t, err, protocol.FailureProtocol)
+			if failure.Attempt == nil || failure.Attempt.Outcome != protocol.AttemptMalformed {
+				t.Fatalf("attempt = %+v", failure.Attempt)
+			}
+		})
+	}
+}
+
+func TestCodexReviewEnforcesOutputBounds(t *testing.T) {
+	t.Parallel()
+
+	valid := `{"findings":[],"overall_explanation":"No defects.","overall_confidence":0.95}`
+	for _, test := range []struct {
+		name    string
+		options fakeCodexOptions
+		class   protocol.FailureClass
+		outcome protocol.AttemptOutcome
+	}{
+		{
+			name:    "process stdout",
+			options: fakeCodexOptions{rawEnvelope: strings.Repeat("x", int(providerStdoutLimit)+1)},
+			class:   protocol.FailureProvider,
+			outcome: protocol.AttemptFailed,
+		},
+		{
+			name: "last message",
+			options: fakeCodexOptions{
+				result:          valid + strings.Repeat(" ", int(providerResultLimit)),
+				envelopeMessage: valid + strings.Repeat(" ", int(providerResultLimit)),
+			},
+			class:   protocol.FailureProtocol,
+			outcome: protocol.AttemptMalformed,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fake := newFakeCodex(t, test.options)
+			reviewer := NewCodex(CodexOptions{
+				Repository:  t.TempDir(),
+				Executable:  fake.path,
+				Environment: []string{"PATH=/usr/bin:/bin", "OPENAI_API_KEY=test-provider-secret"},
+			})
+			_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
+			failure := assertProviderError(t, err, test.class)
+			if failure.Attempt == nil || failure.Attempt.Outcome != test.outcome {
+				t.Fatalf("attempt = %+v", failure.Attempt)
+			}
+		})
+	}
+}
+
+type fakeCodexOptions struct {
+	topHelp         string
+	execHelp        string
+	result          string
+	envelopeMessage string
+	rawEnvelope     string
+	authError       string
+	reviewError     string
+	delay           string
+}
+
+type fakeCodex struct {
+	path        string
+	arguments   string
+	prompt      string
+	environment string
+	directory   string
+}
+
+func newFakeCodex(t *testing.T, options fakeCodexOptions) fakeCodex {
+	t.Helper()
+	root := t.TempDir()
+	fake := fakeCodex{
+		path:        filepath.Join(root, "codex"),
+		arguments:   filepath.Join(root, "arguments.txt"),
+		prompt:      filepath.Join(root, "prompt.txt"),
+		environment: filepath.Join(root, "environment.txt"),
+		directory:   filepath.Join(root, "directory.txt"),
+	}
+	if options.topHelp == "" {
+		options.topHelp = "--ask-for-approval --strict-config --search"
+	}
+	if options.execHelp == "" {
+		options.execHelp = "--ephemeral --skip-git-repo-check --output-schema --output-last-message --json --cd --ignore-user-config --ignore-rules --sandbox"
+	}
+	if options.result == "" {
+		options.result = `{"findings":[],"overall_explanation":"No defects.","overall_confidence":0.95}`
+	}
+	if options.envelopeMessage == "" {
+		options.envelopeMessage = options.result
+	}
+	envelope := options.rawEnvelope
+	if envelope == "" {
+		message, err := json.Marshal(map[string]any{
+			"type": "item.completed",
+			"item": map[string]any{"id": "item_0", "type": "agent_message", "text": options.envelopeMessage},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		envelope = strings.Join([]string{
+			`{"type":"thread.started","thread_id":"fake-thread"}`,
+			`{"type":"turn.started"}`,
+			string(message),
+			`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
+			"",
+		}, "\n")
+	}
+	authBlock := "printf '%s\\n' 'Logged in using ChatGPT'\nexit 0"
+	if options.authError != "" {
+		authBlock = "printf '%s\\n' " + shellQuote(options.authError) + " >&2\nexit 1"
+	}
+	reviewFailure := ""
+	if options.reviewError != "" {
+		reviewFailure = "printf '%b' " + shellQuote(options.reviewError) + " >&2\nexit 7\n"
+	}
+	delay := ""
+	if options.delay != "" {
+		delay = "sleep " + options.delay + "\n"
+	}
+	script := "#!/bin/sh\n" +
+		"set -eu\n" +
+		"if [ \"${1:-}\" = \"--version\" ]; then printf '%s\\n' 'codex-cli 0.146.0'; exit 0; fi\n" +
+		"if [ \"${1:-}\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.topHelp) + "; exit 0; fi\n" +
+		"if [ \"${1:-}\" = \"exec\" ] && [ \"${2:-}\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.execHelp) + "; exit 0; fi\n" +
+		"if [ \"${1:-}\" = \"login\" ] && [ \"${2:-}\" = \"status\" ]; then " + authBlock + "; fi\n" +
+		"printf '%s\\n' \"$@\" > " + shellQuote(fake.arguments) + "\n" +
+		"cat > " + shellQuote(fake.prompt) + "\n" +
+		"env > " + shellQuote(fake.environment) + "\n" +
+		"pwd > " + shellQuote(fake.directory) + "\n" +
+		reviewFailure +
+		delay +
+		"output=''\nprevious=''\nfor argument in \"$@\"; do\n  if [ \"$previous\" = \"--output-last-message\" ]; then output=\"$argument\"; fi\n  previous=\"$argument\"\ndone\n" +
+		"test -n \"$output\"\n" +
+		"printf '%s' " + shellQuote(options.result) + " > \"$output\"\n" +
+		"printf '%s' " + shellQuote(envelope) + "\n"
+	if err := os.WriteFile(fake.path, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return fake
+}
+
+func codexConfig(isolation protocol.Isolation, web bool, timeout time.Duration) config.Effective {
+	return config.Effective{
+		Engine:          config.Value[protocol.ProviderName]{Value: protocol.ProviderCodex, Source: config.SourceFlag},
+		Model:           config.Value[string]{Value: "test-model", Source: config.SourceFlag},
+		ReasoningEffort: config.Value[config.ReasoningEffort]{Value: config.ReasoningHigh, Source: config.SourceDefault},
+		Timeout:         config.Value[config.Duration]{Value: config.Duration(timeout), Source: config.SourceFlag},
+		Retries:         config.Value[int]{Value: 1, Source: config.SourceDefault},
+		MaxBytes:        config.Value[int64]{Value: 1 << 20, Source: config.SourceDefault},
+		Isolation:       config.Value[protocol.Isolation]{Value: isolation, Source: config.SourceFlag},
+		WebAccess:       config.Value[bool]{Value: web, Source: config.SourceFlag},
+	}
+}
+
+func assertProviderError(t *testing.T, err error, class protocol.FailureClass) *Error {
+	t.Helper()
+	var failure *Error
+	if !errors.As(err, &failure) {
+		t.Fatalf("error = %v, want provider error", err)
+	}
+	if failure.Class != class {
+		t.Fatalf("error class = %q, want %q: %v", failure.Class, class, failure)
+	}
+	return failure
+}
+
+func readTestFile(t *testing.T, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(content)
+}
+
+func contains(values []string, want string) bool {
+	return indexOf(values, want) >= 0
+}
+
+func indexOf(values []string, want string) int {
+	for index, value := range values {
+		if value == want {
+			return index
+		}
+	}
+	return -1
+}

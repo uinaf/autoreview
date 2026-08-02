@@ -64,7 +64,7 @@ the v0.1 epic requires replacing every planned row with passing evidence.
 
 | Baseline behavior | Disposition | Go v0.1 contract | Owner |
 | --- | --- | --- | --- |
-| Codex executable discovery and capability checks | Port | Real adapter with fake-executable tests | #5 |
+| Codex executable discovery and capability checks | Port | Real adapter with fake-executable tests and an opt-in authenticated smoke | #5 |
 | Claude Code executable discovery and safe-mode checks | Port | Real adapter with fake-executable tests | #6 |
 | Cursor Agent executable discovery and sandbox checks | Port | Real adapter with fake-executable tests | #7 |
 | Existing CLI authentication reuse | Port | Reference provider auth in place; never store credentials | #5, #6, #7 |
@@ -75,7 +75,7 @@ the v0.1 epic requires replacing every planned row with passing evidence.
 | Process heartbeat and platform `ps` sampling | Improve | Bounded progress plus duration metadata without scraping process tables | #5 |
 | Timeout, cancellation, and child cleanup | Port | Shared Go process runner terminates the provider tree reliably | #5 |
 | Bounded and terminal-escaped provider output | Port | Shared runner bounds raw streams and exposes sanitized diagnostics | #5 |
-| Codex structured response decoding | Port | Strict provider review schema | #5 |
+| Codex structured response decoding | Improve | Codex-compatible generation schema plus strict canonical local decoding | #5 |
 | Claude structured envelope decoding | Port | Strict provider review schema | #6 |
 | Cursor outer envelope decoding | Port | Strict outer envelope plus strict inner review | #7 |
 | Cursor prose before valid trailing JSON fails | Improve | Accept one unambiguous complete trailing object and record recovery | #7 |

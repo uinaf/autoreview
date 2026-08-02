@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	contractschema "github.com/uinaf/autoreview/schema"
 )
 
 func TestExternalReferencesResolveBesideSchema(t *testing.T) {
@@ -91,6 +92,48 @@ func TestSchemasRejectUnsafePaths(t *testing.T) {
 				t.Errorf("result schema accepted unsafe path %q", invalidPath)
 			}
 		})
+	}
+}
+
+func TestReviewSchemaUnionBranchesDeclareTypes(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("review-v1.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	definitions := document["$defs"].(map[string]any)
+	relativePath := definitions["relative_path"].(map[string]any)
+	branches := relativePath["not"].(map[string]any)["anyOf"].([]any)
+	for index, branch := range branches {
+		if branch.(map[string]any)["type"] != "string" {
+			t.Errorf("relative_path not.anyOf[%d] is missing type=string", index)
+		}
+	}
+}
+
+func TestCodexReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
+	t.Parallel()
+
+	data, err := contractschema.CodexReviewV1()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	definitions := document["$defs"].(map[string]any)
+	relativePath := definitions["relative_path"].(map[string]any)
+	if _, ok := relativePath["not"]; ok {
+		t.Fatal("Codex schema retained unsupported not keyword")
+	}
+	if relativePath["type"] != "string" || relativePath["pattern"] != `\S` {
+		t.Fatalf("Codex relative_path constraints = %+v", relativePath)
 	}
 }
 
