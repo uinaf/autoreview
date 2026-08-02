@@ -8,21 +8,27 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
-	"time"
+	"os/signal"
+	"syscall"
 
 	"github.com/uinaf/autoreview/internal/buildinfo"
 	"github.com/uinaf/autoreview/internal/config"
 	"github.com/uinaf/autoreview/internal/protocol"
+	"github.com/uinaf/autoreview/internal/provider"
+	"github.com/uinaf/autoreview/internal/target"
 )
 
 type dependencies struct {
-	lookupEnv func(string) (string, bool)
-	homeDir   func() (string, error)
+	lookupEnv    func(string) (string, bool)
+	homeDir      func() (string, error)
+	newCollector func() (*target.Collector, error)
+	newReviewer  func(protocol.ProviderName, string) provider.Reviewer
 }
 
 func main() {
-	os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr, dependencies{
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr, dependencies{
 		lookupEnv: os.LookupEnv,
 	}))
 }
@@ -38,22 +44,22 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer, depe
 	if len(arguments) > 0 && arguments[0] == "config" {
 		return runConfig(ctx, arguments[1:], stdout, stderr, dependencies)
 	}
-	report(stderr, "usage: autoreview --version | autoreview config [options]\n")
+	if len(arguments) > 0 && arguments[0] == "review" {
+		return runReview(ctx, arguments[1:], stdout, stderr, dependencies)
+	}
+	if len(arguments) == 1 && (arguments[0] == "--help" || arguments[0] == "-h" || arguments[0] == "help") {
+		report(stdout, "usage: autoreview <review|config|version> [options]\n\nreview  review a frozen local, branch, or commit target\nconfig  print the effective configuration and its sources\nversion print the binary version\n")
+		return 0
+	}
+	report(stderr, "usage: autoreview <review|config|version> [options]\n")
 	return 2
 }
 
 func runConfig(ctx context.Context, arguments []string, stdout, stderr io.Writer, dependencies dependencies) int {
 	flags := flag.NewFlagSet("autoreview config", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags.SetOutput(flagOutput(arguments, stdout, stderr))
 	repository := flags.String("repository", ".", "Git repository or path within it")
-	engine := flags.String("engine", "", "review engine: codex, claude, or cursor")
-	model := flags.String("model", "", "provider model override")
-	reasoning := flags.String("reasoning-effort", "", "reasoning effort")
-	timeoutText := flags.String("timeout", "", "provider timeout")
-	retries := flags.Int("retries", 0, "protocol retry count: 0 or 1")
-	maxBytes := flags.Int64("max-bytes", 0, "maximum frozen bundle bytes")
-	isolation := flags.String("isolation", "", "provider isolation: strict or native")
-	webAccess := flags.Bool("web-access", false, "allow provider web access")
+	configFlags := bindConfigFlags(flags)
 	jsonOutput := flags.Bool("json", false, "print effective config as JSON")
 	if err := flags.Parse(arguments); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -65,40 +71,10 @@ func runConfig(ctx context.Context, arguments []string, stdout, stderr io.Writer
 		report(stderr, "autoreview config does not accept positional arguments\n")
 		return 2
 	}
-	visited := map[string]bool{}
-	flags.Visit(func(item *flag.Flag) { visited[item.Name] = true })
-	overrides := config.Overrides{}
-	if visited["engine"] {
-		value := protocol.ProviderName(*engine)
-		overrides.Engine = &value
-	}
-	if visited["model"] {
-		overrides.Model = model
-	}
-	if visited["reasoning-effort"] {
-		value := config.ReasoningEffort(*reasoning)
-		overrides.ReasoningEffort = &value
-	}
-	if visited["timeout"] {
-		value, err := time.ParseDuration(*timeoutText)
-		if err != nil {
-			report(stderr, "flag timeout: %v\n", err)
-			return 2
-		}
-		overrides.Timeout = &value
-	}
-	if visited["retries"] {
-		overrides.Retries = retries
-	}
-	if visited["max-bytes"] {
-		overrides.MaxBytes = maxBytes
-	}
-	if visited["isolation"] {
-		value := protocol.Isolation(*isolation)
-		overrides.Isolation = &value
-	}
-	if visited["web-access"] {
-		overrides.WebAccess = webAccess
+	overrides, err := configFlags.overrides(flags)
+	if err != nil {
+		report(stderr, "%v\n", err)
+		return 2
 	}
 	effective, err := config.Load(ctx, config.Options{
 		Repository: *repository,
@@ -125,13 +101,13 @@ func runConfig(ctx context.Context, arguments []string, stdout, stderr io.Writer
 		source config.Source
 	}{
 		{name: "engine", value: string(effective.Engine.Value), source: effective.Engine.Source},
-		{name: "model", value: strconv.Quote(effective.Model.Value), source: effective.Model.Source},
+		{name: "model", value: formatQuote(effective.Model.Value), source: effective.Model.Source},
 		{name: "reasoning_effort", value: string(effective.ReasoningEffort.Value), source: effective.ReasoningEffort.Source},
 		{name: "timeout", value: effective.Timeout.Value.String(), source: effective.Timeout.Source},
-		{name: "retries", value: strconv.Itoa(effective.Retries.Value), source: effective.Retries.Source},
-		{name: "max_bytes", value: strconv.FormatInt(effective.MaxBytes.Value, 10), source: effective.MaxBytes.Source},
+		{name: "retries", value: formatInt(effective.Retries.Value), source: effective.Retries.Source},
+		{name: "max_bytes", value: formatInt64(effective.MaxBytes.Value), source: effective.MaxBytes.Source},
 		{name: "isolation", value: string(effective.Isolation.Value), source: effective.Isolation.Source},
-		{name: "web_access", value: strconv.FormatBool(effective.WebAccess.Value), source: effective.WebAccess.Source},
+		{name: "web_access", value: formatBool(effective.WebAccess.Value), source: effective.WebAccess.Source},
 	}
 	for _, value := range values {
 		if err := writeConfigValue(stdout, value.name, value.value, value.source); err != nil {
