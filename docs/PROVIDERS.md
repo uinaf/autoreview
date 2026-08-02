@@ -89,3 +89,40 @@ smoke is:
 ```bash
 AUTOREVIEW_TEST_LIVE_CLAUDE=1 go test ./internal/provider -run '^TestClaudeLive$' -count=1 -v
 ```
+
+## Cursor Agent
+
+The Cursor adapter requires the current non-interactive JSON, Ask mode,
+workspace, trust, model, and authentication-status surfaces. Strict mode also
+requires and forces Cursor sandboxing. The reviewed source is never mounted in
+the provider workspace; the frozen prompt is delivered on standard input.
+
+Cursor Agent does not expose a documented per-run web-disable flag. The adapter
+therefore fails capability preflight when `web_access` is false rather than
+claiming an isolation guarantee it cannot enforce. Since repository config and
+environment variables cannot enable web access, a Cursor run requires explicit
+CLI authorization or trusted XDG configuration.
+
+| Mode | Authentication and configuration | Isolation controls |
+| --- | --- | --- |
+| `strict` | Empty home and Cursor state; optional `CURSOR_API_KEY` remains process-local | Ask mode, forced sandbox, generated deny rules for shell/file/MCP access |
+| `native` | Existing Cursor environment, login, and user configuration | Ask mode in an empty provider workspace; user sandbox configuration is preserved |
+
+The model is explicit and defaults to `cursor-grok-4.5-high-fast`. Cursor model
+IDs encode effort, so a separate non-default `reasoning_effort` is rejected.
+There is no fallback.
+
+The outer JSON must be one successful Cursor `result` envelope with a non-empty
+string result. The inner result is first decoded as exactly one canonical review
+object. If that fails, the only recovery accepts non-JSON prose followed by one
+complete canonical object that consumes the remaining suffix. Fences, ambiguous
+braces, JSON-value prefixes, malformed or multiple objects, suffix prose, and
+non-canonical reviews fail closed. Successful recovery is recorded as
+`cursor_trailing_object`.
+
+Default tests use a controlled fake executable and a complete recovery matrix.
+The optional authenticated smoke is:
+
+```bash
+AUTOREVIEW_TEST_LIVE_CURSOR=1 go test ./internal/provider -run '^TestCursorLive$' -count=1 -v
+```
