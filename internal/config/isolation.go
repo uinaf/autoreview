@@ -57,7 +57,6 @@ func PrepareRuntime(effective Effective, parentEnvironment []string) (*Runtime, 
 		"SSL_CERT_FILE": {}, "SSL_CERT_DIR": {}, "NODE_EXTRA_CA_CERTS": {},
 		"CURL_CA_BUNDLE": {}, "REQUESTS_CA_BUNDLE": {},
 		"HTTP_PROXY": {}, "HTTPS_PROXY": {}, "ALL_PROXY": {}, "NO_PROXY": {},
-		"http_proxy": {}, "https_proxy": {}, "all_proxy": {}, "no_proxy": {},
 	}
 	switch effective.Engine.Value {
 	case protocol.ProviderCodex:

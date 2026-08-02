@@ -104,7 +104,7 @@ func readOpenedConfig(descriptor int, path string) ([]byte, error) {
 	file := os.NewFile(uintptr(descriptor), path)
 	if file == nil {
 		_ = unix.Close(descriptor)
-		return nil, fmt.Errorf("wrap repository config")
+		return nil, fmt.Errorf("wrap config file")
 	}
 	defer func() { _ = file.Close() }()
 	before, err := file.Stat()
