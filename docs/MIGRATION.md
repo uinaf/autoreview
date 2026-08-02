@@ -65,7 +65,7 @@ the v0.1 epic requires replacing every planned row with passing evidence.
 | Baseline behavior | Disposition | Go v0.1 contract | Owner |
 | --- | --- | --- | --- |
 | Codex executable discovery and capability checks | Port | Real adapter with fake-executable tests and an opt-in authenticated smoke | #5 |
-| Claude Code executable discovery and safe-mode checks | Port | Real adapter with fake-executable tests | #6 |
+| Claude Code executable discovery and safe-mode checks | Port | Real adapter with fake-executable tests and an opt-in authenticated smoke | #6 |
 | Cursor Agent executable discovery and sandbox checks | Port | Real adapter with fake-executable tests | #7 |
 | Existing CLI authentication reuse | Port | Reference provider auth in place; never store credentials | #5, #6, #7 |
 | Empty bundle-only provider workspace | Port | Default `strict` isolation | #4, #5, #6, #7 |

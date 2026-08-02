@@ -57,3 +57,35 @@ AUTOREVIEW_TEST_LIVE_CODEX=1 go test ./internal/provider -run '^TestCodexLive$' 
 
 CLI target collection, retries, final report construction, output rendering,
 and exit codes belong to the orchestration milestone in issue #8.
+
+## Claude Code
+
+The Claude adapter capability-probes the installed CLI before model invocation.
+Every mode requires `--print`, `--no-session-persistence`, JSON structured
+output, explicit model and effort, a fixed tool inventory, `dontAsk`
+permissions, and disabled Chrome integration. Strict mode additionally requires
+`--safe-mode`, user-only setting sources, strict MCP configuration, and an MCP
+tool deny rule.
+
+The prompt is delivered on standard input. The adapter accepts only one Claude
+`result` envelope with `subtype: success`, `is_error: false`, and an object in
+`structured_output`; the inner object must then pass the complete canonical Go
+decoder. No prose extraction or protocol recovery is attempted.
+
+The model is always explicit and defaults to `claude-opus-5`. Effort must be
+one of `low`, `medium`, `high`, `xhigh`, or `max`; there is no model fallback.
+Web access is off by default. When enabled, the only exposed tool is
+`WebSearch`; filesystem, shell, MCP, browser, and unrestricted fetch tools are
+not exposed.
+
+| Mode | Authentication and configuration | Isolation controls |
+| --- | --- | --- |
+| `strict` | Empty home and Claude state; optional `ANTHROPIC_API_KEY` remains process-local | Safe mode, disabled auto-memory, strict MCP, no unsafe tools |
+| `native` | Existing Claude environment, keychain login, and user configuration | Empty provider workspace and explicit safe tool inventory |
+
+Default tests use a controlled fake executable. The optional authenticated
+smoke is:
+
+```bash
+AUTOREVIEW_TEST_LIVE_CLAUDE=1 go test ./internal/provider -run '^TestClaudeLive$' -count=1 -v
+```
