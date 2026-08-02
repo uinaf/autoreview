@@ -49,8 +49,8 @@
       "why_given": "reminder"
     },
     {
-      "instruction": "Interpret exits 0, 1, and 2 as clean, findings, and operational failure",
-      "original_snippets": "Finish only after exit 0 with no accepted actionable findings, or report the precise operational blocker.",
+      "instruction": "Interpret exits 0, 1, and 2 as clean, findings, and operational failure, and allow all-rejected findings to close without a clean claim",
+      "original_snippets": "Finish after exit 0 with no findings, or after exit 1 only when every finding is explicitly rejected. Report exit 1 as findings, never clean. Exit 2 is an operational blocker.",
       "relevant_when": "Handling CLI results",
       "why_given": "new knowledge"
     },
@@ -122,7 +122,7 @@
     },
     {
       "instruction": "Report sources, redacted command, verification, finding decisions, and final status",
-      "original_snippets": "Report the task-context sources, exact review command with sensitive values redacted, builder proof rerun, accepted and rejected findings, issue URL if one was safely created, and the final clean result or operational blocker.",
+      "original_snippets": "Report the task-context sources, exact review command with sensitive values redacted, refreshed builder and real-surface proof, accepted and rejected findings, issue URL if one was safely created, and the final clean result, all-rejected findings result, or operational blocker.",
       "relevant_when": "Closing out the workflow",
       "why_given": "preference"
     }

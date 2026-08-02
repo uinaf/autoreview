@@ -1,6 +1,6 @@
 ---
 name: autoreview
-description: "Runs one independent review of completed local changes, pull requests, branch diffs, or commits through the installed autoreview Go CLI using Codex, Claude, or Cursor; gathers authoritative acceptance criteria, selects or honors one provider, validates findings, applies scoped fixes, verifies, reruns until clean, and safely reports reproducible CLI defects. Use when asked to autoreview, review my code, review my pull request, check my changes, run an automated PR or second-model code review, perform a final tool-backed review, or close out review after builder verification. Do not use as builder verification or a multi-reviewer panel."
+description: "Runs one independent review of completed local changes, pull requests, branch diffs, or commits through the installed autoreview Go CLI using Codex, Claude, or Cursor; gathers authoritative acceptance criteria, selects or honors one provider, validates findings, applies scoped fixes, verifies and reruns accepted fixes, and safely reports reproducible CLI defects. Use when asked to autoreview, review my code, review my pull request, check my changes, run an automated PR or second-model code review, perform a final tool-backed review, or close out review after builder verification. Do not use as builder verification or a multi-reviewer panel."
 ---
 
 # Autoreview
@@ -79,8 +79,9 @@ operational failure.
    by the fix, then rerun autoreview with the same provider, target semantics,
    and task contract.
 6. If the CLI reports `source_changed`, discard the review and freeze a new run.
-7. Finish only after exit 0 with no accepted actionable findings, or report the
-   precise operational blocker. Do not turn a failure into a clean verdict.
+7. Finish after exit 0 with no findings, or after exit 1 only when every finding
+   is explicitly rejected. Report exit 1 as findings, never clean. Exit 2 is an
+   operational blocker; do not turn it into a clean verdict.
 
 ## Report reproducible CLI defects
 
@@ -106,4 +107,4 @@ For a reproducible non-security defect in autoreview itself:
 Report the task-context sources, exact review command with sensitive values
 redacted, refreshed builder and real-surface proof, accepted and rejected
 findings, issue URL if one was safely created, and the final clean result or
-operational blocker.
+all-rejected findings result, or operational blocker.

@@ -64,6 +64,8 @@ func TestSkillPackageIsStandaloneAndPrivateDataFree(t *testing.T) {
 	allowedExtensions := map[string]bool{".md": true, ".json": true, ".yaml": true, ".txt": true}
 	privatePatterns := []*regexp.Regexp{
 		regexp.MustCompile(`/Users/[A-Za-z0-9._-]+`),
+		regexp.MustCompile(`/home/[A-Za-z0-9._-]+`),
+		regexp.MustCompile(`(?i)[a-z]:[\\/]users[\\/][A-Za-z0-9._-]+`),
 		regexp.MustCompile(`file://`),
 		regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`),
 		regexp.MustCompile(`(?i)(api[_-]?key|access[_-]?token)=[^[:space:]]+`),
@@ -198,18 +200,26 @@ func TestSkillAutoreviewCommandsUseBuiltCLIFlags(t *testing.T) {
 	configHelp := commandOutput(t, binary, "config", "--help")
 	for _, path := range paths {
 		helpFlags := map[string]bool{}
-		for _, line := range strings.Split(readFile(t, path), "\n") {
-			line = strings.TrimSpace(line)
-			if !strings.HasPrefix(line, "autoreview ") {
-				continue
-			}
-			fields := strings.Fields(line)
+		for _, command := range documentedAutoreviewCommands(t, path) {
+			fields := strings.Fields(command)
 			if len(fields) < 2 {
+				t.Fatalf("%s has incomplete command %q", path, command)
+			}
+			if fields[1] == "--version" {
+				if len(fields) != 2 {
+					t.Fatalf("%s has invalid version command %q", path, command)
+				}
+				commandOutput(t, binary, "--version")
 				continue
 			}
-			help := reviewHelp
-			if fields[1] == "config" {
+			var help string
+			switch fields[1] {
+			case "review":
+				help = reviewHelp
+			case "config":
 				help = configHelp
+			default:
+				t.Fatalf("%s documents unsupported subcommand %q", path, fields[1])
 			}
 			clear(helpFlags)
 			for _, match := range regexp.MustCompile(`(?m)^  -([a-z][a-z0-9-]*)(?:[[:space:]]|$)`).FindAllStringSubmatch(help, -1) {
@@ -232,6 +242,33 @@ func TestSkillAutoreviewCommandsUseBuiltCLIFlags(t *testing.T) {
 			t.Fatalf("standalone skill retained legacy flag %s", deprecated)
 		}
 	}
+}
+
+func documentedAutoreviewCommands(t *testing.T, path string) []string {
+	t.Helper()
+	var commands []string
+	var command string
+	for _, line := range strings.Split(readFile(t, path), "\n") {
+		line = strings.TrimSpace(line)
+		if command == "" {
+			if !strings.HasPrefix(line, "autoreview ") {
+				continue
+			}
+			command = line
+		} else {
+			command += " " + line
+		}
+		if strings.HasSuffix(command, `\`) {
+			command = strings.TrimSpace(strings.TrimSuffix(command, `\`))
+			continue
+		}
+		commands = append(commands, command)
+		command = ""
+	}
+	if command != "" {
+		t.Fatalf("%s has unterminated continued command %q", path, command)
+	}
+	return commands
 }
 
 func commandOutput(t *testing.T, name string, arguments ...string) string {

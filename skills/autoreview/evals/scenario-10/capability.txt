@@ -1,1 +1,1 @@
-Sanitized defect reporting
+Private vulnerability reporting

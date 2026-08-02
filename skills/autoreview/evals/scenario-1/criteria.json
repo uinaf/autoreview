@@ -10,7 +10,7 @@
     {"name": "Environment capability rejection", "description": "The plan identifies AUTOREVIEW_ISOLATION=native and AUTOREVIEW_WEB_ACCESS=true as rejected capability elevation", "max_score": 10},
     {"name": "Untrusted XDG capability rejection", "description": "The plan identifies native isolation in an XDG_CONFIG_HOME-selected file as unauthorized", "max_score": 10},
     {"name": "No effective success claimed", "description": "The document says configuration fails until unauthorized capability settings are removed or made strict instead of presenting a successful effective config", "max_score": 10},
-    {"name": "Diagnostic command", "description": "The plan uses autoreview config --repository . with the engine, model, effort, and timeout flag overrides, preferably with --json", "max_score": 10},
-    {"name": "Safe local target command", "description": "After remediation, the review command uses review --mode local, passes engine, model, effort, timeout, and --prompt, and does not enable native isolation or web access", "max_score": 10}
+    {"name": "Diagnostic command", "description": "After cleanup and before review, the plan uses autoreview config --repository . --json with engine, model, effort, timeout, --isolation strict, and --web-access=false to demonstrate the safe resolved configuration", "max_score": 10},
+    {"name": "Safe local target command", "description": "The review command uses review --mode local, passes engine, model, effort, timeout, --prompt, --isolation strict, and --web-access=false so inherited capability settings are explicitly overridden", "max_score": 10}
   ]
 }
