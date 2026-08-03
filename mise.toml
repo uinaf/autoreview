@@ -40,9 +40,25 @@ depends = ["fmt:check", "test", "test:race", "vet", "build"]
 description = "Run CLI and scanner integration tests"
 run = '''
 set -e
+command -v trufflehog >/dev/null || {
+  printf '%s\n' "test:integration requires the trufflehog executable on PATH" >&2
+  exit 1
+}
 go test ./cmd/autoreview -run '^TestBinaryEndToEndWithFakeCodex$' -count=1
-go test ./internal/target -run '^Test(TruffleHogScanner|Collector)' -count=1
+AUTOREVIEW_REAL_TRUFFLEHOG=1 \
+  go test ./internal/target \
+  -run '^Test(TruffleHogScanner.*|CollectorDetectsCredentialInDeletedFile)$' \
+  -count=1 -v
 (cd testdata/v0.1-fixture/after && go test ./...)
+'''
+
+[tasks."test:current-checkout"]
+description = "Opt in to freezing and scanning the current checkout"
+run = '''
+AUTOREVIEW_REAL_REPOSITORY=1 \
+  go test ./internal/target \
+  -run '^TestCollectorRealRepositorySmoke$' \
+  -count=1 -v
 '''
 
 [tasks.vuln]

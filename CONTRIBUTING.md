@@ -17,13 +17,22 @@ Run the deterministic core checks before opening or updating a pull request:
 mise run verify
 ```
 
-Before the `v0.1.0` source tag, run the complete release gate and the pinned
-hosted skill review. The release gate includes the current Go vulnerability
-database and therefore requires network access:
+Before a source tag, run the complete release gate and the pinned hosted skill
+review. The release gate requires the installed `trufflehog` executable,
+exercises its benign and detection paths, and checks the current Go
+vulnerability database, so it also requires network access:
 
 ```bash
 mise run verify:release
 mise run skill:review
+```
+
+Freezing the current checkout is intentionally separate because it depends on
+local changes. Opt in when target-collection behavior needs that additional
+smoke check:
+
+```bash
+mise run test:current-checkout
 ```
 
 For command-surface changes, also exercise the built binary directly.
