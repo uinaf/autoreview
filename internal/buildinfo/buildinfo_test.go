@@ -5,11 +5,10 @@ import (
 	"testing"
 )
 
-func TestVersion(t *testing.T) {
-	got := Version()
-	want := "autoreview dev (unknown)"
-	if got != want {
-		t.Fatalf("Version() = %q, want %q", got, want)
+func TestResolveWithoutBuildInfo(t *testing.T) {
+	gotVersion, gotCommit := resolve("dev", "unknown", nil, false)
+	if gotVersion != "dev" || gotCommit != "unknown" {
+		t.Fatalf("resolve = %q, %q", gotVersion, gotCommit)
 	}
 }
 

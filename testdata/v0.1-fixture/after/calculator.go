@@ -12,5 +12,9 @@ func Mean(values []int) float64 {
 	if len(values) == 0 {
 		return 0
 	}
-	return float64(Sum(values)) / float64(len(values))
+	total := 0.0
+	for _, value := range values {
+		total += float64(value)
+	}
+	return total / float64(len(values))
 }

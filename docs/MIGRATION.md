@@ -130,11 +130,12 @@ on every row:
 | Configuration and isolation | Typed precedence, trusted-XDG, strict/native runtime, and capability tests in `mise run verify` |
 | Codex, Claude, and Cursor | Fake-executable contract suites plus the bounded same-commit fixture in `testdata/v0.1-fixture/` |
 | Go-only runtime and supported source targets | `mise run runtime:go-only` and `mise run build:cross` |
-| Go dependency vulnerability analysis | Pinned `govulncheck` in `mise run vuln` |
+| Go dependency vulnerability analysis | Pinned `govulncheck` binary against the current official database in `mise run vuln` |
 | Standalone skill and evals | Package/privacy/link/CLI compatibility tests plus `mise run skill:review` |
 | Public distribution | Signed `v0.1.0` source tag, Go module install proof, and `uinaf/autoreview@0.1.0` registry install proof |
 
-`mise run verify:release` composes every deterministic v0.1 gate. The hosted
-Tessl review remains a separate authenticated gate. Real-provider outcomes,
-tag verification, and clean-room installation are release evidence reported on
-issue #10 rather than machine-local facts stored in this public document.
+`mise run verify:release` composes the deterministic v0.1 checks with the live
+Go vulnerability database gate. The hosted Tessl review remains a separate
+authenticated gate. Real-provider outcomes, tag verification, and clean-room
+installation are release evidence reported on issue #10 rather than
+machine-local facts stored in this public document.

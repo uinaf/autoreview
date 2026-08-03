@@ -11,14 +11,15 @@ go build ./cmd/autoreview
 
 ## Validation
 
-Run all deterministic checks before opening or updating a pull request:
+Run the deterministic core checks before opening or updating a pull request:
 
 ```bash
 mise run verify
 ```
 
-Before the `v0.1.0` source tag, run the complete deterministic release gate and
-the pinned hosted skill review:
+Before the `v0.1.0` source tag, run the complete release gate and the pinned
+hosted skill review. The release gate includes the current Go vulnerability
+database and therefore requires network access:
 
 ```bash
 mise run verify:release
