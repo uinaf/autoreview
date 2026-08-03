@@ -17,8 +17,10 @@ Disposition means:
 - **Defer**: preserve the architectural boundary but deliver it after the
   proven local package.
 
-Every non-obsolete row links to its owning implementation issue. Completion of
-the v0.1 epic requires replacing every planned row with passing evidence.
+Every non-obsolete row links to its owning implementation issue. All Port and
+Improve rows owned by issues #2 through #9 are implemented for v0.1; Defer rows
+remain explicit post-proof boundaries, and Obsolete rows are intentional
+exclusions rather than gaps.
 
 ## CLI and orchestration
 
@@ -115,3 +117,26 @@ the v0.1 epic requires replacing every planned row with passing evidence.
 | Runtime Python dependency | Obsolete | Repository and runtime remain Go-only | #1 |
 | Global skill replacement during development | Defer | Keep legacy reviewer until real-provider and publication proof passes | #10 |
 | CI, signed binaries, Homebrew, automated Tessl publish | Defer | Post-proof infrastructure epic | #11 |
+
+## v0.1 completion evidence
+
+The matrix is closed by contract area rather than duplicating a proof command
+on every row:
+
+| Contract area | Evidence |
+| --- | --- |
+| Result protocol and reporting | Schema conformance, semantic decoder, renderer, retry, exit-code, and CLI end-to-end tests in `mise run verify` |
+| Frozen targets and secret scanning | Git-boundary tests plus real TruffleHog integration in `mise run verify:release` |
+| Configuration and isolation | Typed precedence, trusted-XDG, strict/native runtime, and capability tests in `mise run verify` |
+| Codex, Claude, and Cursor | Fake-executable contract suites plus the bounded same-commit fixture in `testdata/v0.1-fixture/` |
+| Go-only runtime and supported source targets | `mise run runtime:go-only` and `mise run build:cross` |
+| Go dependency vulnerability analysis | Pinned `govulncheck` binary against the current official database in `mise run vuln` |
+| Standalone skill and evals | Package/privacy/link/CLI compatibility tests plus `mise run skill:review` |
+| Public skill distribution | Published `uinaf/autoreview@0.1.0` registry install proof |
+| Source distribution | Post-merge signed tag and isolated Go install gates recorded on issue #10 |
+
+`mise run verify:release` composes the deterministic v0.1 checks with the live
+Go vulnerability database gate. The hosted Tessl review remains a separate
+authenticated gate. Real-provider outcomes, tag verification, and clean-room
+installation are release evidence reported on issue #10 rather than
+machine-local facts stored in this public document.
