@@ -391,7 +391,13 @@ func validateRaw(raw rawConfig, source Source, allowCapabilities bool) error {
 }
 
 func repositoryRoot(ctx context.Context, repository, gitPath string) (string, error) {
-	gitPath, err := trustedexec.Resolve("git", gitPath, repository, os.Environ())
+	gitPath, err := trustedexec.Resolve(
+		"git",
+		gitPath,
+		repository,
+		os.Environ(),
+		trustedexec.GitProbe(os.TempDir()),
+	)
 	if err != nil {
 		return "", fmt.Errorf("find git: %w", err)
 	}
@@ -399,8 +405,8 @@ func repositoryRoot(ctx context.Context, repository, gitPath string) (string, er
 	if err != nil {
 		return "", fmt.Errorf("resolve repository path: %w", err)
 	}
-	command := exec.CommandContext(ctx, gitPath, "-c", "core.hooksPath=/dev/null", "rev-parse", "--show-toplevel")
-	command.Dir = absolute
+	command := exec.CommandContext(ctx, gitPath, "-C", absolute, "-c", "core.hooksPath=/dev/null", "rev-parse", "--show-toplevel")
+	command.Dir = os.TempDir()
 	command.Env = configGitEnvironment()
 	output, err := command.Output()
 	if ctxErr := ctx.Err(); ctxErr != nil {

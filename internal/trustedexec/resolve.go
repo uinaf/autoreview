@@ -7,7 +7,12 @@ import (
 	"strings"
 )
 
-func Resolve(name, configuredPath, repository string, environment []string) (string, error) {
+type Check func(path string) error
+
+func Resolve(name, configuredPath, repository string, environment []string, check Check) (string, error) {
+	if check == nil {
+		return "", fmt.Errorf("trusted %s executable capability check is required", name)
+	}
 	boundaries, err := repositoryBoundaries(repository)
 	if err != nil {
 		return "", err
@@ -17,20 +22,39 @@ func Resolve(name, configuredPath, repository string, environment []string) (str
 		if err != nil {
 			return "", fmt.Errorf("trusted %s executable: %w", name, err)
 		}
+		if err := check(path); err != nil {
+			if isProbeCleanupError(err) {
+				return "", fmt.Errorf("trusted %s executable capability probe cleanup failed", name)
+			}
+			return "", fmt.Errorf("trusted %s executable is not usable under the hardened environment", name)
+		}
 		return path, nil
 	}
 	executable := configuredPath
 	if executable == "" {
 		executable = name
 	}
+	foundTrustedCandidate := false
 	for _, directory := range filepath.SplitList(environmentValue(environment, "PATH")) {
 		if !filepath.IsAbs(directory) {
 			continue
 		}
-		path, err := validate(filepath.Join(directory, executable), boundaries)
-		if err == nil {
-			return path, nil
+		candidate := filepath.Join(directory, executable)
+		resolved, err := validate(candidate, boundaries)
+		if err != nil {
+			continue
 		}
+		foundTrustedCandidate = true
+		if err := check(resolved); err != nil {
+			if isProbeCleanupError(err) {
+				return "", fmt.Errorf("trusted %s executable capability probe cleanup failed", name)
+			}
+			continue
+		}
+		return resolved, nil
+	}
+	if foundTrustedCandidate {
+		return "", fmt.Errorf("trusted %s executable %q was not usable under the hardened environment", name, executable)
 	}
 	return "", fmt.Errorf("trusted %s executable %q was not found outside the reviewed repository", name, executable)
 }

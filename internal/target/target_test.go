@@ -790,26 +790,6 @@ func TestValidateRegularOrMissingRejectsMissingIntermediateDirectory(t *testing.
 	}
 }
 
-func TestRequireGitVersion(t *testing.T) {
-	t.Parallel()
-
-	for _, test := range []struct {
-		output string
-		valid  bool
-	}{
-		{output: "git version 2.41.0", valid: true},
-		{output: "git version 2.55.0 (Apple Git-154)", valid: true},
-		{output: "git version 3.0.0", valid: true},
-		{output: "git version 2.40.9", valid: false},
-		{output: "not git", valid: false},
-	} {
-		err := requireGitVersion(test.output)
-		if (err == nil) != test.valid {
-			t.Errorf("requireGitVersion(%q) error = %v", test.output, err)
-		}
-	}
-}
-
 func TestSanitizeDiagnosticTruncatesOnRuneBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -846,6 +826,40 @@ func TestGitClientRejectsEmptyCommand(t *testing.T) {
 	}
 }
 
+func TestGitClientSkipsUnusablePathShim(t *testing.T) {
+	repository := committedRepository(t)
+	realGit, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	realGit, err = filepath.EvalSymlinks(realGit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shimBin := t.TempDir()
+	manager := filepath.Join(shimBin, "manager")
+	writeFile(t, shimBin, "manager", "#!/bin/sh\nprintf 'raw dependency output' >&2\nexit 9\n")
+	if err := os.Chmod(manager, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(manager, filepath.Join(shimBin, "git")); err != nil {
+		t.Fatal(err)
+	}
+	healthyBin := t.TempDir()
+	if err := os.Symlink(realGit, filepath.Join(healthyBin, "git")); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", strings.Join([]string{shimBin, healthyBin}, string(os.PathListSeparator)))
+
+	client, err := newGitClient("", repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.run(context.Background(), t.TempDir(), nil, 4<<10, "--version"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestFreezeIgnoresRepositoryColorConfiguration(t *testing.T) {
 	t.Parallel()
 
@@ -862,7 +876,7 @@ func TestScannerUsesSeparateHomeAndPreservesExitError(t *testing.T) {
 	t.Parallel()
 
 	script := filepath.Join(t.TempDir(), "trufflehog")
-	writeFile(t, filepath.Dir(script), filepath.Base(script), "#!/bin/sh\nfor last in \"$@\"; do :; done\nif [ \"$HOME\" = \"$last\" ]; then exit 6; fi\nexit 7\n")
+	writeFile(t, filepath.Dir(script), filepath.Base(script), "#!/bin/sh\nfor last in \"$@\"; do :; done\nif [ ! -e \"$last/frozen-review.txt\" ]; then exit 0; fi\nif [ \"$HOME\" = \"$last\" ]; then exit 6; fi\nexit 7\n")
 	if err := os.Chmod(script, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -902,6 +916,38 @@ func TestCollectorNeverExecutesRepositoryLocalTruffleHog(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("repository-local trufflehog was executed: %v", err)
+	}
+}
+
+func TestCollectorSkipsUnusablePathShim(t *testing.T) {
+	repository := committedRepository(t)
+	shimBin := t.TempDir()
+	manager := filepath.Join(shimBin, "manager")
+	writeFile(t, shimBin, "manager", "#!/bin/sh\nprintf 'raw dependency output' >&2\nexit 9\n")
+	if err := os.Chmod(manager, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(manager, filepath.Join(shimBin, "trufflehog")); err != nil {
+		t.Fatal(err)
+	}
+	healthyBin := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "healthy-scanner-ran")
+	writeFile(t, healthyBin, "trufflehog", "#!/bin/sh\nfor last in \"$@\"; do :; done\nif [ ! -e \"$last/frozen-review.txt\" ]; then exit 0; fi\nprintf scanned > "+quoteShellTest(marker)+"\n")
+	if err := os.Chmod(filepath.Join(healthyBin, "trufflehog"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", strings.Join([]string{shimBin, healthyBin, os.Getenv("PATH")}, string(os.PathListSeparator)))
+	writeFile(t, repository, "file.txt", "changed\n")
+
+	collector, err := New(Options{Repository: repository})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := collector.Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("healthy scanner was not executed: %v", err)
 	}
 }
 

@@ -37,3 +37,19 @@ func TestContainsOnlyZombieLeader(t *testing.T) {
 		})
 	}
 }
+
+func TestIsZombieLeader(t *testing.T) {
+	t.Parallel()
+
+	zombie := unix.KinfoProc{}
+	zombie.Proc.P_pid = 42
+	zombie.Proc.P_stat = 5
+	live := zombie
+	live.Proc.P_stat = 2
+	if !isZombieLeader(&zombie, 42) {
+		t.Fatal("isZombieLeader() rejected the expected zombie")
+	}
+	if isZombieLeader(&live, 42) || isZombieLeader(&zombie, 41) || isZombieLeader(nil, 42) {
+		t.Fatal("isZombieLeader() accepted a non-matching process")
+	}
+}
