@@ -189,6 +189,19 @@ func TestResolveSkipsGitBelowMinimumVersion(t *testing.T) {
 	assertSameExecutable(t, resolved, newGit)
 }
 
+func TestResolveReportsGitVersionRequirement(t *testing.T) {
+	t.Parallel()
+
+	repository := testRepository(t)
+	bin := t.TempDir()
+	writeExecutableContent(t, filepath.Join(bin, "git"), "#!/bin/sh\nprintf 'git version 2.40.9\\n'\n")
+
+	_, err := Resolve("git", "", repository, []string{"PATH=" + bin}, GitProbe(t.TempDir()))
+	if err == nil || !strings.Contains(err.Error(), "git 2.41 or newer is required; found 2.40") {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+}
+
 func TestGitProbeConcurrentFastProcesses(t *testing.T) {
 	realGit, err := exec.LookPath("git")
 	if err != nil {

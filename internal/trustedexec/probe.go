@@ -29,10 +29,38 @@ func GitProbe(directory string) Check {
 			return err
 		}
 		if output.exceeded {
-			return errors.New("git version output exceeded safe limit")
+			return newProbeCapabilityError("git version output exceeded safe limit", nil)
 		}
-		return requireGitVersion(output.String())
+		if err := requireGitVersion(output.String()); err != nil {
+			return newProbeCapabilityError(err.Error(), err)
+		}
+		return nil
 	}
+}
+
+type probeCapabilityError struct {
+	message string
+	cause   error
+}
+
+func newProbeCapabilityError(message string, cause error) *probeCapabilityError {
+	return &probeCapabilityError{message: message, cause: cause}
+}
+
+func (err *probeCapabilityError) Error() string {
+	return err.message
+}
+
+func (err *probeCapabilityError) Unwrap() error {
+	return err.cause
+}
+
+func probeDiagnostic(err error) (string, bool) {
+	var capability *probeCapabilityError
+	if !errors.As(err, &capability) {
+		return "", false
+	}
+	return capability.message, capability.message != ""
 }
 
 type probeCleanupError struct {
@@ -66,7 +94,22 @@ func runProbe(path string, arguments []string, directory string, environment []s
 	if result.CleanupErr != nil {
 		return &probeCleanupError{cause: result.CleanupErr}
 	}
-	return result.CommandErr
+	if result.CommandErr == nil {
+		return nil
+	}
+	message := "capability probe failed"
+	switch {
+	case errors.Is(result.CommandErr, context.DeadlineExceeded):
+		message = "capability probe timed out"
+	case errors.Is(result.CommandErr, context.Canceled):
+		message = "capability probe was cancelled"
+	default:
+		var exitError *exec.ExitError
+		if errors.As(result.CommandErr, &exitError) {
+			message = fmt.Sprintf("capability probe exited with status %d", exitError.ExitCode())
+		}
+	}
+	return newProbeCapabilityError(message, result.CommandErr)
 }
 
 func requireGitVersion(output string) error {

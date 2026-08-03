@@ -26,6 +26,9 @@ func Resolve(name, configuredPath, repository string, environment []string, chec
 			if isProbeCleanupError(err) {
 				return "", fmt.Errorf("trusted %s executable capability probe cleanup failed", name)
 			}
+			if diagnostic, ok := probeDiagnostic(err); ok {
+				return "", fmt.Errorf("trusted %s executable is not usable under the hardened environment: %s", name, diagnostic)
+			}
 			return "", fmt.Errorf("trusted %s executable is not usable under the hardened environment", name)
 		}
 		return path, nil
@@ -35,6 +38,7 @@ func Resolve(name, configuredPath, repository string, environment []string, chec
 		executable = name
 	}
 	foundTrustedCandidate := false
+	lastDiagnostic := ""
 	for _, directory := range filepath.SplitList(environmentValue(environment, "PATH")) {
 		if !filepath.IsAbs(directory) {
 			continue
@@ -49,11 +53,17 @@ func Resolve(name, configuredPath, repository string, environment []string, chec
 			if isProbeCleanupError(err) {
 				return "", fmt.Errorf("trusted %s executable capability probe cleanup failed", name)
 			}
+			if diagnostic, ok := probeDiagnostic(err); ok {
+				lastDiagnostic = diagnostic
+			}
 			continue
 		}
 		return resolved, nil
 	}
 	if foundTrustedCandidate {
+		if lastDiagnostic != "" {
+			return "", fmt.Errorf("trusted %s executable %q was not usable under the hardened environment: %s", name, executable, lastDiagnostic)
+		}
 		return "", fmt.Errorf("trusted %s executable %q was not usable under the hardened environment", name, executable)
 	}
 	return "", fmt.Errorf("trusted %s executable %q was not found outside the reviewed repository", name, executable)
