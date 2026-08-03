@@ -18,12 +18,51 @@ type truffleHogScanner struct {
 	path string
 }
 
-func newTruffleHogScanner(path, repository string) (*truffleHogScanner, error) {
-	absolute, err := trustedexec.Resolve("trufflehog", path, repository, os.Environ())
+func newTruffleHogScanner(ctx context.Context, path, repository string) (scanner *truffleHogScanner, returnErr error) {
+	root, err := os.MkdirTemp("", "autoreview-scan-probe-")
+	if err != nil {
+		return nil, fmt.Errorf("create trufflehog probe directory: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(root); err != nil {
+			scanner = nil
+			returnErr = errors.Join(returnErr, fmt.Errorf("remove trufflehog probe directory: %w", err))
+		}
+	}()
+	home := filepath.Join(root, "home")
+	input := filepath.Join(root, "input")
+	for _, directory := range []string{home, input} {
+		if err := os.Mkdir(directory, 0o700); err != nil {
+			return nil, fmt.Errorf("create trufflehog probe directory: %w", err)
+		}
+	}
+	absolute, err := trustedexec.Resolve(
+		ctx,
+		"trufflehog",
+		path,
+		repository,
+		os.Environ(),
+		trustedexec.Probe(truffleHogArguments(input), root, hardenedScannerEnvironment(home)),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("find trufflehog: %w", err)
 	}
 	return &truffleHogScanner{path: absolute}, nil
+}
+
+func truffleHogArguments(directory string) []string {
+	return []string{
+		"filesystem",
+		"--no-update",
+		"--no-verification",
+		"--fail-on-scan-errors",
+		"--fail",
+		"--json",
+		"--no-color",
+		"--log-level=-1",
+		"--concurrency=1",
+		directory,
+	}
 }
 
 func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (returnErr error) {
@@ -54,18 +93,8 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (ret
 	}
 
 	//nolint:noctx // processgroup.Run owns cancellation so it can kill the group before reaping the leader.
-	command := exec.Command(scanner.path,
-		"filesystem",
-		"--no-update",
-		"--no-verification",
-		"--fail-on-scan-errors",
-		"--fail",
-		"--json",
-		"--no-color",
-		"--log-level=-1",
-		"--concurrency=1",
-		directory,
-	)
+	command := exec.Command(scanner.path, truffleHogArguments(directory)...)
+	command.Dir = root
 	command.Env = hardenedScannerEnvironment(home)
 	stdout := newLimitBuffer(1 << 20)
 	stderr := newLimitBuffer(diagnosticLimit)

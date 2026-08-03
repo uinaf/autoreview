@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strconv"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -47,47 +47,19 @@ func (sandbox *gitSandbox) Close() error {
 	return os.RemoveAll(sandbox.directory)
 }
 
-func newGitClient(path, repository string) (*gitClient, error) {
-	absolute, err := trustedexec.Resolve("git", path, repository, os.Environ())
+func newGitClient(ctx context.Context, path, repository string) (*gitClient, error) {
+	absolute, err := trustedexec.Resolve(
+		ctx,
+		"git",
+		path,
+		repository,
+		os.Environ(),
+		trustedexec.GitProbe(os.TempDir()),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("find git: %w", err)
 	}
-	git := &gitClient{path: absolute}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	output, err := git.run(ctx, os.TempDir(), nil, 4<<10, "--version")
-	if err != nil {
-		return nil, fmt.Errorf("inspect git version: %w", err)
-	}
-	if err := requireGitVersion(string(output)); err != nil {
-		return nil, err
-	}
-	return git, nil
-}
-
-func requireGitVersion(output string) error {
-	const prefix = "git version "
-	value := strings.TrimSpace(output)
-	if !strings.HasPrefix(value, prefix) {
-		return fmt.Errorf("git returned an unrecognized version string")
-	}
-	fields := strings.Fields(strings.TrimPrefix(value, prefix))
-	if len(fields) == 0 {
-		return fmt.Errorf("git returned an unrecognized version string")
-	}
-	components := strings.Split(fields[0], ".")
-	if len(components) < 2 {
-		return fmt.Errorf("git returned an unrecognized version string")
-	}
-	major, majorErr := strconv.Atoi(components[0])
-	minor, minorErr := strconv.Atoi(components[1])
-	if majorErr != nil || minorErr != nil {
-		return fmt.Errorf("git returned an unrecognized version string")
-	}
-	if major < 2 || major == 2 && minor < 41 {
-		return fmt.Errorf("git 2.41 or newer is required; found %d.%d", major, minor)
-	}
-	return nil
+	return &gitClient{path: absolute}, nil
 }
 
 func (git *gitClient) run(ctx context.Context, directory string, input []byte, outputLimit int64, arguments ...string) ([]byte, error) {
@@ -129,20 +101,25 @@ func (git *gitClient) runConfiguredTo(ctx context.Context, directory string, inp
 	if len(arguments) == 0 {
 		return fmt.Errorf("git command requires a subcommand")
 	}
-	args := append([]string(nil), hardenedGitConfig...)
+	absoluteDirectory, err := filepath.Abs(directory)
+	if err != nil {
+		return fmt.Errorf("resolve git working directory: %w", err)
+	}
+	args := []string{"-C", absoluteDirectory}
+	args = append(args, hardenedGitConfig...)
 	if attributeSource != "" {
 		args = append(args, "--attr-source="+attributeSource)
 	}
 	args = append(args, arguments...)
 	command := exec.CommandContext(ctx, git.path, args...)
-	command.Dir = directory
+	command.Dir = os.TempDir()
 	command.Env = append(hardenedEnvironment(), extraEnvironment...)
 	command.Stdin = bytes.NewReader(input)
 	command.WaitDelay = 2 * time.Second
 	stderr := newLimitBuffer(diagnosticLimit)
 	command.Stdout = stdout
 	command.Stderr = stderr
-	err := command.Run()
+	err = command.Run()
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
 	}

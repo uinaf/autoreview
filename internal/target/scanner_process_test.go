@@ -16,11 +16,11 @@ func TestTruffleHogScannerCancellationKillsDescendants(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "survived")
 	childPID := filepath.Join(t.TempDir(), "child.pid")
 	script := filepath.Join(t.TempDir(), "trufflehog")
-	writeFile(t, filepath.Dir(script), filepath.Base(script), "#!/bin/sh\n(/bin/sleep 0.25; printf survived > "+quoteShellTest(marker)+") &\nprintf '%s' \"$!\" > "+quoteShellTest(childPID)+"\nwait\n")
+	writeFile(t, filepath.Dir(script), filepath.Base(script), "#!/bin/sh\nfor last in \"$@\"; do :; done\nif [ ! -e \"$last/frozen-review.txt\" ]; then exit 0; fi\n(/bin/sleep 0.25; printf survived > "+quoteShellTest(marker)+") &\nprintf '%s' \"$!\" > "+quoteShellTest(childPID)+"\nwait\n")
 	if err := os.Chmod(script, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	scanner, err := newTruffleHogScanner(script, repositoryBoundaryFixture(t))
+	scanner, err := newTruffleHogScanner(t.Context(), script, repositoryBoundaryFixture(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,11 +69,11 @@ func TestTruffleHogScannerCleansDescendantsAfterLeaderExit(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			marker := filepath.Join(t.TempDir(), "survived")
 			script := filepath.Join(t.TempDir(), "trufflehog")
-			writeFile(t, filepath.Dir(script), filepath.Base(script), "#!/bin/sh\n(/bin/sleep 0.25; printf survived > "+quoteShellTest(marker)+") &\nexit "+strconv.Itoa(test.exitStatus)+"\n")
+			writeFile(t, filepath.Dir(script), filepath.Base(script), "#!/bin/sh\nfor last in \"$@\"; do :; done\nif [ ! -e \"$last/frozen-review.txt\" ]; then exit 0; fi\n(/bin/sleep 0.25; printf survived > "+quoteShellTest(marker)+") &\nexit "+strconv.Itoa(test.exitStatus)+"\n")
 			if err := os.Chmod(script, 0o700); err != nil {
 				t.Fatal(err)
 			}
-			scanner, err := newTruffleHogScanner(script, repositoryBoundaryFixture(t))
+			scanner, err := newTruffleHogScanner(t.Context(), script, repositoryBoundaryFixture(t))
 			if err != nil {
 				t.Fatal(err)
 			}
