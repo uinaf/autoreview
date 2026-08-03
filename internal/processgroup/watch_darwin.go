@@ -23,6 +23,9 @@ func waitForExit(ctx context.Context, pid int) error {
 		Fflags: unix.NOTE_EXIT,
 	}
 	if _, err := unix.Kevent(queue, []unix.Kevent_t{change}, nil, nil); err != nil {
+		if errors.Is(err, unix.ESRCH) {
+			return nil
+		}
 		return err
 	}
 	events := make([]unix.Kevent_t, 1)

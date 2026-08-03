@@ -77,25 +77,27 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (ret
 	command.Stdout = stdout
 	command.Stderr = stderr
 	runResult := processgroup.Run(ctx, command)
-	err = runResult.Err()
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return errors.Join(ctxErr, runResult.CleanupErr)
 	}
 	if stdout.exceeded {
-		return fmt.Errorf("trufflehog output exceeded safe diagnostic limit")
+		return errors.Join(fmt.Errorf("trufflehog output exceeded safe diagnostic limit"), runResult.CleanupErr)
 	}
 	if stderr.exceeded {
-		return fmt.Errorf("trufflehog diagnostic output exceeded safe limit")
+		return errors.Join(fmt.Errorf("trufflehog diagnostic output exceeded safe limit"), runResult.CleanupErr)
 	}
 	if len(bytes.TrimSpace(stdout.Bytes())) > 0 {
-		return ErrSecretFound
+		return errors.Join(ErrSecretFound, runResult.CleanupErr)
 	}
-	if err != nil {
+	if runResult.CommandErr != nil {
 		diagnostic := sanitizeDiagnostic(strings.TrimSpace(stderr.String()))
 		if diagnostic == "" {
 			diagnostic = "no diagnostic output"
 		}
-		return fmt.Errorf("trufflehog scan failed: %s: %w", diagnostic, err)
+		return errors.Join(fmt.Errorf("trufflehog scan failed: %s: %w", diagnostic, runResult.CommandErr), runResult.CleanupErr)
+	}
+	if runResult.CleanupErr != nil {
+		return fmt.Errorf("trufflehog process cleanup failed: %w", runResult.CleanupErr)
 	}
 	return nil
 }

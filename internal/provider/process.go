@@ -21,6 +21,7 @@ const (
 	processTimeout     processErrorKind = "timeout"
 	processCancelled   processErrorKind = "cancelled"
 	processOutputLimit processErrorKind = "output_limit"
+	processCleanup     processErrorKind = "cleanup"
 )
 
 type processSpec struct {
@@ -80,16 +81,22 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	command.Stdout = stdout
 	command.Stderr = stderr
 	started := time.Now()
-	err := processgroup.Run(runContext, command).Err()
+	runResult := processgroup.Run(runContext, command)
 	result := processResult{
 		Stdout:   stdout.Bytes(),
 		Stderr:   stderr.Bytes(),
 		ExitCode: 0,
 		Duration: time.Since(started),
 	}
-	if err == nil {
+	if runResult.CommandErr == nil && runResult.CleanupErr == nil {
 		return result, nil
 	}
+	if runResult.CommandErr == nil {
+		result.Stdout = nil
+		result.Stderr = nil
+		return result, &processError{Kind: processCleanup, Result: result, Err: runResult.CleanupErr}
+	}
+	err := errors.Join(runResult.CommandErr, runResult.CleanupErr)
 	if exitError := new(exec.ExitError); errors.As(err, &exitError) {
 		result.ExitCode = exitError.ExitCode()
 	} else {
