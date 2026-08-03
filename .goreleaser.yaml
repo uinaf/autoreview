@@ -54,6 +54,7 @@ release:
     owner: uinaf
     name: autoreview
   mode: append
+  replace_existing_artifacts: true
   prerelease: auto
 
 homebrew_casks:
