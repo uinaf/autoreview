@@ -71,7 +71,7 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 	if maximumPrompt < request.Config.MaxBytes.Value || protocolBytes > maximumPrompt || int64(len(request.Prompt)) > maximumPrompt-protocolBytes {
 		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("provider prompt exceeds %d bytes", maximumPrompt), nil, nil)
 	}
-	prompt := reviewpolicy.CursorReviewPrompt(request.Prompt)
+	input := reviewpolicy.CursorReviewInput(request.Prompt)
 	reviewContext, cancelReview := context.WithTimeout(ctx, time.Duration(request.Config.Timeout.Value))
 	defer cancelReview()
 	repository, err := filepath.Abs(cursor.repository)
@@ -111,7 +111,7 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 		Arguments:   cursorArguments(request.Config, runtime.Workspace, model),
 		Directory:   runtime.Workspace,
 		Environment: environment,
-		Input:       []byte(prompt),
+		Input:       input,
 		Timeout:     time.Duration(request.Config.Timeout.Value),
 		StdoutLimit: providerStdoutLimit,
 		StderrLimit: providerStderrLimit,

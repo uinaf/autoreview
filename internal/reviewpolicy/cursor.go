@@ -16,6 +16,9 @@ func CursorReviewProtocol() string {
 	return cursorReviewProtocol
 }
 
-func CursorReviewPrompt(bundle string) string {
-	return bundle + cursorReviewProtocol
+func CursorReviewInput(bundle string) []byte {
+	input := make([]byte, len(bundle)+len(cursorReviewProtocol))
+	offset := copy(input, bundle)
+	copy(input[offset:], cursorReviewProtocol)
+	return input
 }
