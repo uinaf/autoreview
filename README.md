@@ -1,3 +1,5 @@
+![autoreview — structured independent code review, as a CLI and an agent skill.](https://uinaf.dev/og/banner/autoreview.png)
+
 # autoreview
 
 `autoreview` is a Go CLI and agent skill for one structured, independent code
