@@ -10,8 +10,11 @@ import (
 	"testing"
 	"time"
 
+	contractschema "github.com/uinaf/autoreview/schema"
+
 	"github.com/uinaf/autoreview/internal/config"
 	"github.com/uinaf/autoreview/internal/protocol"
+	"github.com/uinaf/autoreview/internal/reviewpolicy"
 )
 
 func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
@@ -39,8 +42,7 @@ func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 	}
 	prompt := readTestFile(t, fake.prompt)
 	if !strings.HasPrefix(prompt, "frozen review bundle\nAUTOREVIEW-TRUSTED-REVIEW-PROTOCOL-V1\n") ||
-		!strings.Contains(prompt, `"required": [`) ||
-		!strings.Contains(prompt, `"overall_explanation"`) ||
+		strings.Count(prompt, string(contractschema.ReviewV1())) != 1 ||
 		!strings.HasSuffix(prompt, "Return only the review JSON object now.\n") {
 		t.Fatalf("provider stdin omitted trusted review protocol: %q", prompt)
 	}
@@ -126,7 +128,7 @@ func TestCursorReviewRejectsPromptWhenProtocolExceedsAllowanceBeforeDiscovery(t 
 	effective := cursorConfig(protocol.IsolationStrict, true, 5*time.Second)
 	effective.MaxBytes = config.Value[int64]{Value: 1, Source: config.SourceFlag}
 	maximumPrompt := effective.MaxBytes.Value + providerPromptAllowance
-	prompt := strings.Repeat("x", int(maximumPrompt-int64(len(cursorReviewProtocol))+1))
+	prompt := strings.Repeat("x", int(maximumPrompt-int64(len(reviewpolicy.CursorReviewProtocol()))+1))
 	reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: "missing-cursor-agent"})
 	_, err := reviewer.Review(context.Background(), Request{Prompt: prompt, Config: effective})
 	failure := assertProviderError(t, err, protocol.FailureConfig)
