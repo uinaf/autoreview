@@ -132,8 +132,8 @@ on every row:
 | Go-only runtime and supported source targets | `mise run runtime:go-only` and `mise run build:cross` |
 | Go dependency vulnerability analysis | Pinned `govulncheck` binary against the current official database in `mise run vuln` |
 | Standalone skill and evals | Package/privacy/link/CLI compatibility tests plus `mise run skill:review` |
-| Public skill distribution | Published `uinaf/autoreview@0.1.1` registry install proof |
-| Source distribution | Post-merge signed tag and isolated Go install gates recorded on issue #10 |
+| Public skill distribution | Registry publication and isolated install gates recorded on issue #32 |
+| Source distribution | Post-merge signed tag and isolated Go install gates recorded on issue #32 |
 
 `mise run verify:release` composes the deterministic v0.1 checks with installed
 TruffleHog integration and the live Go vulnerability database gate. The scanner
@@ -141,5 +141,5 @@ gate fails when the executable is missing or incompatible; freezing the current
 checkout remains a separate smoke. Run `mise run test:current-checkout`
 explicitly to opt in. The hosted Tessl review remains a separate authenticated
 gate. Real-provider outcomes, tag verification, and clean-room installation are
-release evidence reported on issue #10 rather than machine-local facts stored
+release evidence reported on issue #32 rather than machine-local facts stored
 in this public document.

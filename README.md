@@ -9,7 +9,8 @@ result locally, and emits a stable terminal or JSON report.
 
 ## Install
 
-Install the current source release with Go 1.26 or newer:
+After the signed `v0.1.1` source tag is available and verified, install it with
+Go 1.26 or newer:
 
 ```bash
 go install github.com/uinaf/autoreview/cmd/autoreview@v0.1.1
