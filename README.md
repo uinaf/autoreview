@@ -102,8 +102,8 @@ suspected vulnerabilities privately through the repository Security tab; see
 
 The CLI publishes signed macOS and Linux archives for amd64 and arm64 from
 verified `main` commits. Conventional Commits select the next CLI version, and
-the `uinaf/tap` Homebrew tap provides the prebuilt command. The Tessl package remains
-independently versioned and is tracked in [issue #38](https://github.com/uinaf/autoreview/issues/38).
+the `uinaf/tap` Homebrew tap provides the prebuilt command. The Tessl package
+remains independently versioned and is tracked in [issue #38](https://github.com/uinaf/autoreview/issues/38).
 
 GitHub Checks integration and CI-hosted review reporting remain in
 [issue #11](https://github.com/uinaf/autoreview/issues/11); release automation
