@@ -28,8 +28,8 @@ Runtime dependencies are Git 2.41 or newer, the `trufflehog` executable, and
 the selected review harness available on `PATH`. Multiple supported harnesses
 may be installed; `--engine` selects exactly one for each run.
 
-The standalone [agent skill](skills/autoreview) invokes the installed CLI. It
-does not bundle a second runtime.
+The [agent skill](skills/autoreview/SKILL.md) invokes the installed CLI. It does
+not bundle a second runtime.
 See [Releases](docs/RELEASES.md) for archive, checksum, Sigstore signature, and
 GitHub provenance verification.
 
