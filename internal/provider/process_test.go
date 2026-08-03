@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -37,39 +37,6 @@ func TestRunProcessBoundsOutput(t *testing.T) {
 		t.Fatalf("stdout = %q", result.Stdout)
 	}
 	assertMarkerNotWritten(t, marker)
-}
-
-func TestRunProcessRetriesBusyExecutable(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("ETXTBSY executable publication behavior is Linux-specific")
-	}
-
-	script := writeTestExecutable(t, "busy", "#!/bin/sh\nprintf 'ready\\n'\n")
-	writer, err := os.OpenFile(script, os.O_WRONLY, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	closed := make(chan error, 1)
-	time.AfterFunc(35*time.Millisecond, func() {
-		closed <- writer.Close()
-	})
-
-	result, runErr := runProcess(context.Background(), processSpec{
-		Path:        script,
-		Environment: []string{"PATH=/usr/bin:/bin"},
-		Timeout:     2 * time.Second,
-		StdoutLimit: 64,
-		StderrLimit: 64,
-	})
-	if closeErr := <-closed; closeErr != nil {
-		t.Fatal(closeErr)
-	}
-	if runErr != nil {
-		t.Fatalf("runProcess() error = %v", runErr)
-	}
-	if string(result.Stdout) != "ready\n" {
-		t.Fatalf("stdout = %q, want %q", result.Stdout, "ready\\n")
-	}
 }
 
 func TestRunProcessRejectsNegativeOutputLimits(t *testing.T) {
@@ -321,29 +288,67 @@ func writeTestExecutable(t *testing.T, name, content string) string {
 
 func writeTestExecutableAt(t *testing.T, path, content string) {
 	t.Helper()
+	const shebang = "#!/bin/sh\n"
+	if !strings.HasPrefix(content, shebang) {
+		t.Fatalf("test executable must start with %q", strings.TrimSpace(shebang))
+	}
+	content = shebang + "if [ \"${AUTOREVIEW_TEST_EXECUTABLE_PROBE:-}\" = 1 ]; then exit 0; fi\n" + strings.TrimPrefix(content, shebang)
 	temporary, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
+	defer func() {
+		_ = os.Remove(temporaryPath)
+	}()
+	closeAfterFailure := func(cause error) {
+		if closeErr := temporary.Close(); closeErr != nil {
+			t.Fatalf("%v; close temporary executable: %v", cause, closeErr)
+		}
+		t.Fatal(cause)
+	}
 	if _, err := temporary.WriteString(content); err != nil {
-		temporary.Close()
-		t.Fatal(err)
+		closeAfterFailure(err)
 	}
 	if err := temporary.Chmod(0o700); err != nil {
-		temporary.Close()
-		t.Fatal(err)
+		closeAfterFailure(err)
 	}
 	if err := temporary.Sync(); err != nil {
-		temporary.Close()
-		t.Fatal(err)
+		closeAfterFailure(err)
 	}
 	if err := temporary.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Rename(temporaryPath, path); err != nil {
 		t.Fatal(err)
+	}
+	waitForTestExecutable(t, path)
+}
+
+func waitForTestExecutable(t *testing.T, path string) {
+	t.Helper()
+	const attempts = 8
+	delay := 5 * time.Millisecond
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for attempt := 0; attempt < attempts; attempt++ {
+		command := exec.CommandContext(ctx, path)
+		command.Env = []string{"AUTOREVIEW_TEST_EXECUTABLE_PROBE=1", "PATH=/usr/bin:/bin"}
+		output, err := command.CombinedOutput()
+		if err == nil {
+			return
+		}
+		if !errors.Is(err, syscall.ETXTBSY) || attempt == attempts-1 {
+			t.Fatalf("probe test executable: %v: %s", err, output)
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			t.Fatal(ctx.Err())
+		case <-timer.C:
+		}
+		delay *= 2
 	}
 }
 

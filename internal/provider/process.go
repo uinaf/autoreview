@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/uinaf/autoreview/internal/processgroup"
@@ -44,11 +43,6 @@ type processResult struct {
 	Duration time.Duration
 }
 
-const (
-	processStartBusyAttempts = 6
-	processStartBusyDelay    = 10 * time.Millisecond
-)
-
 type processError struct {
 	Kind   processErrorKind
 	Result processResult
@@ -72,6 +66,11 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	}
 	runContext, cancel := context.WithTimeout(ctx, spec.Timeout)
 	defer cancel()
+	//nolint:noctx // processgroup.Run owns cancellation so it can kill the group before reaping the leader.
+	command := exec.Command(spec.Path, spec.Arguments...)
+	command.Dir = spec.Directory
+	command.Env = append(make([]string, 0, len(spec.Environment)), spec.Environment...)
+	command.Stdin = spec.Input
 	var overflow atomic.Bool
 	stdout := newBoundedBuffer(spec.StdoutLimit, func() {
 		overflow.Store(true)
@@ -81,8 +80,10 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 		overflow.Store(true)
 		cancel()
 	})
+	command.Stdout = stdout
+	command.Stderr = stderr
 	started := time.Now()
-	runResult := runProcessWithBusyRetry(runContext, spec, stdout, stderr)
+	runResult := processgroup.Run(runContext, command)
 	result := processResult{
 		Stdout:   stdout.Bytes(),
 		Stderr:   stderr.Bytes(),
@@ -117,33 +118,6 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 		kind = processStart
 	}
 	return result, &processError{Kind: kind, Result: result, Err: err}
-}
-
-func runProcessWithBusyRetry(ctx context.Context, spec processSpec, stdout, stderr io.Writer) processgroup.Result {
-	delay := processStartBusyDelay
-	var result processgroup.Result
-	for attempt := 0; attempt < processStartBusyAttempts; attempt++ {
-		//nolint:noctx // processgroup.Run owns cancellation so it can kill the group before reaping the leader.
-		command := exec.Command(spec.Path, spec.Arguments...)
-		command.Dir = spec.Directory
-		command.Env = append(make([]string, 0, len(spec.Environment)), spec.Environment...)
-		command.Stdin = spec.Input
-		command.Stdout = stdout
-		command.Stderr = stderr
-		result = processgroup.Run(ctx, command)
-		if !errors.Is(result.CommandErr, syscall.ETXTBSY) || attempt == processStartBusyAttempts-1 {
-			return result
-		}
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return processgroup.Result{CommandErr: ctx.Err()}
-		case <-timer.C:
-		}
-		delay *= 2
-	}
-	return result
 }
 
 type boundedBuffer struct {
