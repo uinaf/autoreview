@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -36,6 +37,39 @@ func TestRunProcessBoundsOutput(t *testing.T) {
 		t.Fatalf("stdout = %q", result.Stdout)
 	}
 	assertMarkerNotWritten(t, marker)
+}
+
+func TestRunProcessRetriesBusyExecutable(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("ETXTBSY executable publication behavior is Linux-specific")
+	}
+
+	script := writeTestExecutable(t, "busy", "#!/bin/sh\nprintf 'ready\\n'\n")
+	writer, err := os.OpenFile(script, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := make(chan error, 1)
+	time.AfterFunc(35*time.Millisecond, func() {
+		closed <- writer.Close()
+	})
+
+	result, runErr := runProcess(context.Background(), processSpec{
+		Path:        script,
+		Environment: []string{"PATH=/usr/bin:/bin"},
+		Timeout:     2 * time.Second,
+		StdoutLimit: 64,
+		StderrLimit: 64,
+	})
+	if closeErr := <-closed; closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if runErr != nil {
+		t.Fatalf("runProcess() error = %v", runErr)
+	}
+	if string(result.Stdout) != "ready\n" {
+		t.Fatalf("stdout = %q, want %q", result.Stdout, "ready\\n")
+	}
 }
 
 func TestRunProcessRejectsNegativeOutputLimits(t *testing.T) {
@@ -281,10 +315,36 @@ func TestSanitizeDiagnosticRedactsInvalidUTF8Credential(t *testing.T) {
 func writeTestExecutable(t *testing.T, name, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
-	if err := os.WriteFile(path, []byte(content), 0o700); err != nil {
+	writeTestExecutableAt(t, path, content)
+	return path
+}
+
+func writeTestExecutableAt(t *testing.T, path, content string) {
+	t.Helper()
+	temporary, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
 		t.Fatal(err)
 	}
-	return path
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if _, err := temporary.WriteString(content); err != nil {
+		temporary.Close()
+		t.Fatal(err)
+	}
+	if err := temporary.Chmod(0o700); err != nil {
+		temporary.Close()
+		t.Fatal(err)
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		t.Fatal(err)
+	}
+	if err := temporary.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func shellQuote(value string) string {

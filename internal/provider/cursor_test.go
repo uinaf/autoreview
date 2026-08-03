@@ -351,6 +351,10 @@ func newFakeCursor(t *testing.T, options fakeCursorOptions) fakeCursor {
 	if options.output == "" {
 		options.output = cursorEnvelope(`{"findings":[],"overall_explanation":"No defects.","overall_confidence":0.95}`)
 	}
+	outputPath := filepath.Join(root, "output.json")
+	if err := os.WriteFile(outputPath, []byte(options.output), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	authOutput, err := json.Marshal(map[string]any{"status": "authenticated", "isAuthenticated": !options.loggedOut})
 	if err != nil {
 		t.Fatal(err)
@@ -395,10 +399,8 @@ func newFakeCursor(t *testing.T, options fakeCursorOptions) fakeCursor {
 		"env > " + shellQuote(fake.environment) + "\n" +
 		"if [ -n \"${CURSOR_CONFIG_DIR:-}\" ] && [ -f \"$CURSOR_CONFIG_DIR/cli-config.json\" ]; then cat \"$CURSOR_CONFIG_DIR/cli-config.json\" > " + shellQuote(fake.permissions) + "; fi\n" +
 		reviewFailure + delay +
-		"printf '%s' " + shellQuote(options.output) + "\n"
-	if err := os.WriteFile(fake.path, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+		"cat " + shellQuote(outputPath) + "\n"
+	writeTestExecutableAt(t, fake.path, script)
 	return fake
 }
 

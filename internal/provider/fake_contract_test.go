@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -102,9 +103,19 @@ func assertInvalidContracts(t *testing.T, executable string, valid, conflict []s
 
 func expectContractFailure(t *testing.T, executable string, arguments []string, input string) {
 	t.Helper()
-	command := exec.Command(executable, arguments...)
-	command.Stdin = strings.NewReader(input)
-	output, err := command.CombinedOutput()
+	var output []byte
+	var err error
+	delay := processStartBusyDelay
+	for attempt := 0; attempt < processStartBusyAttempts; attempt++ {
+		command := exec.Command(executable, arguments...)
+		command.Stdin = strings.NewReader(input)
+		output, err = command.CombinedOutput()
+		if !errors.Is(err, syscall.ETXTBSY) || attempt == processStartBusyAttempts-1 {
+			break
+		}
+		time.Sleep(delay)
+		delay *= 2
+	}
 	var exitError *exec.ExitError
 	if !errors.As(err, &exitError) || exitError.ExitCode() != 64 {
 		t.Fatalf("contract result = %v, output = %q, want exit 64", err, output)
