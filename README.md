@@ -9,7 +9,7 @@ result locally, and emits a stable terminal or JSON report.
 
 ## Install
 
-Install the signed CLI from the Uinaf Homebrew tap:
+On macOS, install the signed CLI from the Uinaf Homebrew tap:
 
 ```bash
 brew install --cask uinaf/tap/autoreview
