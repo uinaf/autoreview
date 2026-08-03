@@ -14,6 +14,7 @@ import (
 
 	"github.com/uinaf/autoreview/internal/config"
 	"github.com/uinaf/autoreview/internal/protocol"
+	"github.com/uinaf/autoreview/internal/reviewpolicy"
 )
 
 const defaultCursorExecutable = "cursor-agent"
@@ -66,9 +67,11 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 		return Result{}, newFailure(protocol.FailureConfig, "provider prompt must be non-empty valid UTF-8", nil, nil)
 	}
 	maximumPrompt := request.Config.MaxBytes.Value + providerPromptAllowance
-	if maximumPrompt < request.Config.MaxBytes.Value || int64(len(request.Prompt)) > maximumPrompt {
-		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("provider prompt exceeds %d bytes", maximumPrompt), nil, nil)
+	protocolBytes := int64(len(reviewpolicy.CursorReviewProtocol()))
+	if maximumPrompt < request.Config.MaxBytes.Value || protocolBytes > maximumPrompt || int64(len(request.Prompt)) > maximumPrompt-protocolBytes {
+		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("Cursor combined review input exceeds %d bytes (bundle plus trusted protocol)", maximumPrompt), nil, nil)
 	}
+	input := reviewpolicy.CursorReviewInput(request.Prompt)
 	reviewContext, cancelReview := context.WithTimeout(ctx, time.Duration(request.Config.Timeout.Value))
 	defer cancelReview()
 	repository, err := filepath.Abs(cursor.repository)
@@ -108,7 +111,7 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 		Arguments:   cursorArguments(request.Config, runtime.Workspace, model),
 		Directory:   runtime.Workspace,
 		Environment: environment,
-		Input:       []byte(request.Prompt),
+		Input:       input,
 		Timeout:     time.Duration(request.Config.Timeout.Value),
 		StdoutLimit: providerStdoutLimit,
 		StderrLimit: providerStderrLimit,

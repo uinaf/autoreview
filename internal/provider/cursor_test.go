@@ -10,13 +10,17 @@ import (
 	"testing"
 	"time"
 
+	contractschema "github.com/uinaf/autoreview/schema"
+
 	"github.com/uinaf/autoreview/internal/config"
 	"github.com/uinaf/autoreview/internal/protocol"
+	"github.com/uinaf/autoreview/internal/reviewpolicy"
 )
 
 func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 	t.Parallel()
 
+	const bundle = "frozen review bundle"
 	fake := newFakeCursor(t, fakeCursorOptions{authError: "not authenticated"})
 	reviewer := NewCursor(CursorOptions{
 		Repository: t.TempDir(), Executable: fake.path,
@@ -27,7 +31,7 @@ func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 			"HOME=/private/home",
 		},
 	})
-	result, err := reviewer.Review(context.Background(), Request{Prompt: "frozen review bundle", Config: cursorConfig(protocol.IsolationStrict, true, 5*time.Second)})
+	result, err := reviewer.Review(context.Background(), Request{Prompt: bundle, Config: cursorConfig(protocol.IsolationStrict, true, 5*time.Second)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,8 +41,16 @@ func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 	if result.Attempt.Outcome != protocol.AttemptValid || result.ProtocolRecovery.Applied || len(result.Review.Findings) != 0 {
 		t.Fatalf("result = %+v", result)
 	}
-	if prompt := readTestFile(t, fake.prompt); prompt != "frozen review bundle" {
-		t.Fatalf("provider stdin = %q", prompt)
+	prompt := readTestFile(t, fake.prompt)
+	reviewProtocol := reviewpolicy.CursorReviewProtocol()
+	schemaBoundary := "BEGIN AUTOREVIEW-TRUSTED-REVIEW-SCHEMA-V1\n" + string(contractschema.ReviewV1()) + "\nEND AUTOREVIEW-TRUSTED-REVIEW-SCHEMA-V1\n"
+	if len(prompt) != len(bundle)+len(reviewProtocol) ||
+		!strings.HasPrefix(prompt, bundle) ||
+		prompt[len(bundle):] != reviewProtocol ||
+		!strings.HasPrefix(reviewProtocol, "\nAUTOREVIEW-TRUSTED-REVIEW-PROTOCOL-V1\n") ||
+		!strings.Contains(reviewProtocol, schemaBoundary) ||
+		!strings.HasSuffix(reviewProtocol, "Return only the review JSON object now.\n") {
+		t.Fatalf("provider stdin omitted trusted review protocol: input bytes=%d, bundle bytes=%d, protocol bytes=%d", len(prompt), len(bundle), len(reviewProtocol))
 	}
 	arguments := strings.Split(strings.TrimSpace(readTestFile(t, fake.arguments)), "\n")
 	for _, required := range []string{"--print", "--output-format", "json", "--mode", "ask", "--sandbox", "enabled", "--workspace", "--trust", "--model", "test-model"} {
@@ -113,6 +125,22 @@ func TestCursorReviewRejectsUnsupportedWebPolicyBeforeDiscovery(t *testing.T) {
 	}
 	if _, err := os.Stat(fake.arguments); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Cursor was invoked despite unsupported web policy: %v", err)
+	}
+}
+
+func TestCursorReviewRejectsCombinedPromptBeforeDiscovery(t *testing.T) {
+	t.Parallel()
+
+	protocolBytes := int64(len(reviewpolicy.CursorReviewProtocol()))
+	effective := cursorConfig(protocol.IsolationStrict, true, 5*time.Second)
+	effective.MaxBytes = config.Value[int64]{Value: protocolBytes, Source: config.SourceFlag}
+	maximumPrompt := effective.MaxBytes.Value + providerPromptAllowance
+	prompt := strings.Repeat("x", int(maximumPrompt-protocolBytes+1))
+	reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: "missing-cursor-agent"})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: prompt, Config: effective})
+	failure := assertProviderError(t, err, protocol.FailureConfig)
+	if !strings.Contains(failure.Message, "Cursor combined review input exceeds") {
+		t.Fatalf("failure = %q", failure.Message)
 	}
 }
 
