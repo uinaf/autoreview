@@ -82,6 +82,9 @@ func (collector *Collector) Freeze(ctx context.Context, repository string, reque
 		return nil, fmt.Errorf("target changed while freezing: %w", ErrSourceChanged)
 	}
 	if err := collector.scanner.Scan(ctx, first.payload); err != nil {
+		if errors.Is(err, ErrSecretFound) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: %w", ErrSecretScan, err)
 	}
 	return &Bundle{

@@ -376,9 +376,10 @@ func TestFreezeFailsClosedOnScannerErrorAndCancellation(t *testing.T) {
 
 	repository := committedRepository(t)
 	writeFile(t, repository, "file.txt", "changed\n")
-	scanner := &recordingScanner{err: errors.New("scanner unavailable")}
+	scannerFailure := errors.New("scanner unavailable")
+	scanner := &recordingScanner{err: scannerFailure}
 	_, err := newCollector(t, scanner).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal})
-	if err == nil || !strings.Contains(err.Error(), "scanner unavailable") {
+	if !errors.Is(err, ErrSecretScan) || !errors.Is(err, scannerFailure) || !strings.Contains(err.Error(), "scanner unavailable") {
 		t.Fatalf("Freeze() error = %v", err)
 	}
 
@@ -387,6 +388,26 @@ func TestFreezeFailsClosedOnScannerErrorAndCancellation(t *testing.T) {
 	_, err = newCollector(t, &recordingScanner{}).Freeze(ctx, repository, Request{Mode: protocol.TargetLocal})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Freeze(cancelled) error = %v", err)
+	}
+}
+
+func TestFreezePreservesTerminalScannerErrors(t *testing.T) {
+	t.Parallel()
+
+	terminalErrors := []error{ErrSecretFound, context.Canceled, context.DeadlineExceeded}
+	for _, terminalError := range terminalErrors {
+		t.Run(terminalError.Error(), func(t *testing.T) {
+			t.Parallel()
+			repository := committedRepository(t)
+			writeFile(t, repository, "file.txt", "changed\n")
+			_, err := newCollector(t, &recordingScanner{err: terminalError}).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal})
+			if err != terminalError {
+				t.Fatalf("Freeze() error = %v, want unchanged %v", err, terminalError)
+			}
+			if errors.Is(err, ErrSecretScan) {
+				t.Fatalf("Freeze() error = %v, unexpectedly tagged ErrSecretScan", err)
+			}
+		})
 	}
 }
 
@@ -954,6 +975,9 @@ func TestFreezeCancelsBlockingScanner(t *testing.T) {
 	_, err := newCollector(t, scanner).Freeze(ctx, repository, Request{Mode: protocol.TargetLocal})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Freeze() error = %v, want context cancellation", err)
+	}
+	if errors.Is(err, ErrSecretScan) {
+		t.Fatalf("Freeze() error = %v, unexpectedly tagged ErrSecretScan", err)
 	}
 }
 
