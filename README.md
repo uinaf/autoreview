@@ -21,7 +21,8 @@ Runtime dependencies are Git 2.41 or newer, the `trufflehog` executable, and
 the selected review harness available on `PATH`. Multiple supported harnesses
 may be installed; `--engine` selects exactly one for each run.
 
-Install the standalone skill from Tessl into a Codex project:
+After package `0.1.1` is published, install the standalone skill from Tessl
+into a Codex project:
 
 ```bash
 tessl install --agent codex uinaf/autoreview@0.1.1
