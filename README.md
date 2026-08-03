@@ -9,11 +9,11 @@ result locally, and emits a stable terminal or JSON report.
 
 ## Install
 
-After the signed `v0.1.0` source tag is available and verified, install it with
+After the signed `v0.1.1` source tag is available and verified, install it with
 Go 1.26 or newer:
 
 ```bash
-go install github.com/uinaf/autoreview/cmd/autoreview@v0.1.0
+go install github.com/uinaf/autoreview/cmd/autoreview@v0.1.1
 autoreview --version
 ```
 
@@ -21,10 +21,11 @@ Runtime dependencies are Git 2.41 or newer, the `trufflehog` executable, and
 the selected review harness available on `PATH`. Multiple supported harnesses
 may be installed; `--engine` selects exactly one for each run.
 
-Install the standalone skill from Tessl into a Codex project:
+After package `0.1.1` is published, install the standalone skill from Tessl
+into a Codex project:
 
 ```bash
-tessl install --agent codex uinaf/autoreview@0.1.0
+tessl install --agent codex uinaf/autoreview@0.1.1
 ```
 
 The skill invokes the installed CLI. It does not bundle a second runtime.
@@ -90,7 +91,7 @@ suspected vulnerabilities privately through the repository Security tab; see
 
 ## Project status
 
-`v0.1.0` is the source and Tessl package milestone for macOS and Linux on amd64
+`v0.1.1` is the source and Tessl package milestone for macOS and Linux on amd64
 and arm64. GitHub Checks integration, signed binary assets, automated
 publishing, and Homebrew distribution are deferred to [issue #11](https://github.com/uinaf/autoreview/issues/11).
 
