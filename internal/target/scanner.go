@@ -9,7 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
+
+	"github.com/uinaf/autoreview/internal/processgroup"
 )
 
 type truffleHogScanner struct {
@@ -58,7 +59,7 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (ret
 		return fmt.Errorf("write secret-scan input: %w", err)
 	}
 
-	command := exec.CommandContext(ctx, scanner.path,
+	command := exec.Command(scanner.path,
 		"filesystem",
 		"--no-update",
 		"--no-verification",
@@ -71,14 +72,14 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (ret
 		directory,
 	)
 	command.Env = hardenedScannerEnvironment(home)
-	command.WaitDelay = 2 * time.Second
 	stdout := newLimitBuffer(1 << 20)
 	stderr := newLimitBuffer(diagnosticLimit)
 	command.Stdout = stdout
 	command.Stderr = stderr
-	err = command.Run()
+	runResult := processgroup.Run(ctx, command)
+	err = runResult.Err()
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return ctxErr
+		return errors.Join(ctxErr, runResult.CleanupErr)
 	}
 	if stdout.exceeded {
 		return fmt.Errorf("trufflehog output exceeded safe diagnostic limit")

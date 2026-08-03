@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/uinaf/autoreview/internal/processgroup"
 )
 
 type processErrorKind string
@@ -62,15 +64,10 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	}
 	runContext, cancel := context.WithTimeout(ctx, spec.Timeout)
 	defer cancel()
-	command := exec.CommandContext(runContext, spec.Path, spec.Arguments...)
+	command := exec.Command(spec.Path, spec.Arguments...)
 	command.Dir = spec.Directory
 	command.Env = append(make([]string, 0, len(spec.Environment)), spec.Environment...)
 	command.Stdin = bytes.NewReader(spec.Input)
-	configureProcess(command)
-	command.Cancel = func() error {
-		return killProcessGroup(command.Process)
-	}
-	command.WaitDelay = 2 * time.Second
 	var overflow atomic.Bool
 	stdout := newBoundedBuffer(spec.StdoutLimit, func() {
 		overflow.Store(true)
@@ -83,7 +80,7 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	command.Stdout = stdout
 	command.Stderr = stderr
 	started := time.Now()
-	err := command.Run()
+	err := processgroup.Run(runContext, command).Err()
 	result := processResult{
 		Stdout:   stdout.Bytes(),
 		Stderr:   stderr.Bytes(),

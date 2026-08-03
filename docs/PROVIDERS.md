@@ -11,9 +11,10 @@ reviewed repository. Provider commands are argument arrays executed directly;
 repository material is sent only on standard input.
 
 Every process runs in its own process group with a fixed timeout, cancellation,
-and bounded stdout and stderr. Timeout or cancellation kills the complete group.
-Diagnostics redact credential-bearing environment values, escape terminal
-control characters, and remain bounded.
+and bounded stdout and stderr. Before the leader is reaped, the runtime
+terminates remaining group members after success, provider failure, timeout,
+cancellation, or output overflow. Diagnostics redact credential-bearing
+environment values, escape terminal control characters, and remain bounded.
 
 ## Codex CLI
 

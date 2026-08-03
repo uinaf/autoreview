@@ -16,7 +16,8 @@ import (
 func TestRunProcessBoundsOutput(t *testing.T) {
 	t.Parallel()
 
-	script := writeTestExecutable(t, "flood", "#!/bin/sh\nprintf '0123456789abcdef'\n")
+	marker := filepath.Join(t.TempDir(), "survived")
+	script := writeTestExecutable(t, "flood", "#!/bin/sh\n(/bin/sleep 0.25; printf survived > "+shellQuote(marker)+") &\nprintf '0123456789abcdef'\n")
 	result, err := runProcess(context.Background(), processSpec{
 		Path:        script,
 		Directory:   t.TempDir(),
@@ -32,6 +33,7 @@ func TestRunProcessBoundsOutput(t *testing.T) {
 	if string(result.Stdout) != "01234567" {
 		t.Fatalf("stdout = %q", result.Stdout)
 	}
+	assertMarkerNotWritten(t, marker)
 }
 
 func TestRunProcessRejectsNegativeOutputLimits(t *testing.T) {
@@ -162,6 +164,59 @@ func TestRunProcessCancellationKillsChildProcessGroup(t *testing.T) {
 	}
 }
 
+func TestRunProcessCleansDescendantsAfterLeaderExit(t *testing.T) {
+	tests := []struct {
+		name       string
+		exitStatus int
+	}{
+		{name: "success"},
+		{name: "failure", exitStatus: 7},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			marker := filepath.Join(t.TempDir(), "survived")
+			script := writeTestExecutable(t, "leader", "#!/bin/sh\n(/bin/sleep 0.25; printf survived > "+shellQuote(marker)+") &\nexit "+strconv.Itoa(test.exitStatus)+"\n")
+			_, err := runProcess(context.Background(), processSpec{
+				Path:        script,
+				Directory:   t.TempDir(),
+				Environment: []string{"PATH=/usr/bin:/bin"},
+				Timeout:     5 * time.Second,
+				StdoutLimit: 1024,
+				StderrLimit: 1024,
+			})
+			if test.exitStatus == 0 {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				var failure *processError
+				if !errors.As(err, &failure) || failure.Kind != processExit || failure.Result.ExitCode != test.exitStatus {
+					t.Fatalf("runProcess() error = %v", err)
+				}
+			}
+			assertMarkerNotWritten(t, marker)
+		})
+	}
+}
+
+func TestRunProcessTimeoutKillsDescendants(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "survived")
+	script := writeTestExecutable(t, "timeout", "#!/bin/sh\n(/bin/sleep 0.25; printf survived > "+shellQuote(marker)+") &\n/bin/sleep 10\n")
+	_, err := runProcess(context.Background(), processSpec{
+		Path:        script,
+		Directory:   t.TempDir(),
+		Environment: []string{"PATH=/usr/bin:/bin"},
+		Timeout:     50 * time.Millisecond,
+		StdoutLimit: 1024,
+		StderrLimit: 1024,
+	})
+	var failure *processError
+	if !errors.As(err, &failure) || failure.Kind != processTimeout {
+		t.Fatalf("runProcess() error = %v", err)
+	}
+	assertMarkerNotWritten(t, marker)
+}
+
 func TestSanitizeDiagnosticRedactsSecretsAndEscapesControls(t *testing.T) {
 	t.Parallel()
 
@@ -232,4 +287,12 @@ func writeTestExecutable(t *testing.T, name, content string) string {
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func assertMarkerNotWritten(t *testing.T, marker string) {
+	t.Helper()
+	time.Sleep(400 * time.Millisecond)
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("descendant survived and wrote marker: %v", err)
+	}
 }
