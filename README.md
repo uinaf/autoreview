@@ -28,14 +28,8 @@ Runtime dependencies are Git 2.41 or newer, the `trufflehog` executable, and
 the selected review harness available on `PATH`. Multiple supported harnesses
 may be installed; `--engine` selects exactly one for each run.
 
-The CLI and Tessl skill have independent version tracks. Until the skill 2.0
-cutover is complete, install the proven standalone skill package explicitly:
-
-```bash
-tessl install --agent codex uinaf/autoreview@0.1.1
-```
-
-The skill invokes the installed CLI. It does not bundle a second runtime.
+The standalone [agent skill](skills/autoreview) invokes the installed CLI. It
+does not bundle a second runtime.
 See [Releases](docs/RELEASES.md) for archive, checksum, Sigstore signature, and
 GitHub provenance verification.
 
@@ -102,8 +96,7 @@ suspected vulnerabilities privately through the repository Security tab; see
 
 The CLI publishes signed macOS and Linux archives for amd64 and arm64 from
 verified `main` commits. Conventional Commits select the next CLI version, and
-the `uinaf/tap` Homebrew tap provides the prebuilt command. The Tessl package
-remains independently versioned and is tracked in [issue #38](https://github.com/uinaf/autoreview/issues/38).
+the `uinaf/tap` Homebrew tap provides the prebuilt command.
 
 GitHub Checks integration and CI-hosted review reporting remain in
 [issue #11](https://github.com/uinaf/autoreview/issues/11); release automation
