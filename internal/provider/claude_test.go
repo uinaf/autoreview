@@ -277,9 +277,37 @@ func newFakeClaude(t *testing.T, options fakeClaudeOptions) fakeClaude {
 	}
 	script := "#!/bin/sh\n" +
 		"set -eu\n" +
-		"if [ \"${1:-}\" = \"--version\" ]; then printf '%s\\n' '2.1.220 (Claude Code)'; exit 0; fi\n" +
-		"if [ \"${1:-}\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.help) + "; exit 0; fi\n" +
-		"if [ \"${1:-}\" = \"auth\" ] && [ \"${2:-}\" = \"status\" ]; then " + authBlock + "; fi\n" +
+		"fail_contract() { printf '%s\\n' 'unexpected Claude CLI arguments' >&2; exit 64; }\n" +
+		"validate_review() {\n" +
+		"  if [ \"${1:-}\" = '--safe-mode' ]; then\n" +
+		"    shift\n" +
+		"    [ \"${1:-}\" = '--setting-sources' ] || return 1; shift\n" +
+		"    [ \"${1:-}\" = 'user' ] || return 1; shift\n" +
+		"    [ \"${1:-}\" = '--strict-mcp-config' ] || return 1; shift\n" +
+		"    [ \"${1:-}\" = '--disallowedTools' ] || return 1; shift\n" +
+		"    [ \"${1:-}\" = 'mcp__*' ] || return 1; shift\n" +
+		"  fi\n" +
+		"  [ \"${1:-}\" = '--print' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--no-session-persistence' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--output-format' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = 'json' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--json-schema' ] || return 1; shift\n" +
+		"  case \"${1:-}\" in '{'*'}') ;; *) return 1 ;; esac; shift\n" +
+		"  [ \"${1:-}\" = '--permission-mode' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = 'dontAsk' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--no-chrome' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--tools' ] || return 1; shift\n" +
+		"  if [ \"${1:-}\" = 'WebSearch' ]; then shift; [ \"${1:-}\" = '--allowedTools' ] || return 1; shift; [ \"${1:-}\" = 'WebSearch' ] || return 1; shift; else [ -z \"${1:-}\" ] || return 1; shift; fi\n" +
+		"  [ \"${1:-}\" = '--model' ] || return 1; shift\n" +
+		"  [ -n \"${1:-}\" ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--effort' ] || return 1; shift\n" +
+		"  case \"${1:-}\" in low|medium|high|xhigh|max) ;; *) return 1 ;; esac; shift\n" +
+		"  [ \"$#\" -eq 0 ]\n" +
+		"}\n" +
+		"if [ \"$#\" -eq 1 ] && [ \"$1\" = \"--version\" ]; then printf '%s\\n' '2.1.220 (Claude Code)'; exit 0; fi\n" +
+		"if [ \"$#\" -eq 1 ] && [ \"$1\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.help) + "; exit 0; fi\n" +
+		"if [ \"$#\" -eq 3 ] && [ \"$1\" = \"auth\" ] && [ \"$2\" = \"status\" ] && [ \"$3\" = \"--json\" ]; then " + authBlock + "; fi\n" +
+		"validate_review \"$@\" || fail_contract\n" +
 		"printf '%s\\n' \"$@\" > " + shellQuote(fake.arguments) + "\n" +
 		"cat > " + shellQuote(fake.prompt) + "\n" +
 		"env > " + shellQuote(fake.environment) + "\n" +

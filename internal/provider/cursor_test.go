@@ -362,10 +362,26 @@ func newFakeCursor(t *testing.T, options fakeCursorOptions) fakeCursor {
 	}
 	script := "#!/bin/sh\n" +
 		"set -eu\n" +
-		"if [ \"${1:-}\" = \"--version\" ]; then printf '%s\\n' '2026.07.23-e383d2b'; exit 0; fi\n" +
-		"if [ \"${1:-}\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.help) + "; exit 0; fi\n" +
-		"if [ \"${1:-}\" = \"status\" ] && [ \"${2:-}\" = \"--help\" ]; then printf '%s\\n' '--format <format> choices: text, json'; exit 0; fi\n" +
-		"if [ \"${1:-}\" = \"status\" ] && [ \"${2:-}\" = \"--format\" ]; then " + authBlock + "; fi\n" +
+		"fail_contract() { printf '%s\\n' 'unexpected Cursor CLI arguments' >&2; exit 64; }\n" +
+		"validate_review() {\n" +
+		"  [ \"${1:-}\" = '--print' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--output-format' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = 'json' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--mode' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = 'ask' ] || return 1; shift\n" +
+		"  if [ \"${1:-}\" = '--sandbox' ]; then shift; [ \"${1:-}\" = 'enabled' ] || return 1; shift; fi\n" +
+		"  [ \"${1:-}\" = '--workspace' ] || return 1; shift\n" +
+		"  [ -d \"${1:-}\" ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--trust' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--model' ] || return 1; shift\n" +
+		"  [ -n \"${1:-}\" ] || return 1; shift\n" +
+		"  [ \"$#\" -eq 0 ]\n" +
+		"}\n" +
+		"if [ \"$#\" -eq 1 ] && [ \"$1\" = \"--version\" ]; then printf '%s\\n' '2026.07.23-e383d2b'; exit 0; fi\n" +
+		"if [ \"$#\" -eq 1 ] && [ \"$1\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.help) + "; exit 0; fi\n" +
+		"if [ \"$#\" -eq 2 ] && [ \"$1\" = \"status\" ] && [ \"$2\" = \"--help\" ]; then printf '%s\\n' '--format <format> choices: text, json'; exit 0; fi\n" +
+		"if [ \"$#\" -eq 3 ] && [ \"$1\" = \"status\" ] && [ \"$2\" = \"--format\" ] && [ \"$3\" = \"json\" ]; then " + authBlock + "; fi\n" +
+		"validate_review \"$@\" || fail_contract\n" +
 		"printf '%s\\n' \"$@\" > " + shellQuote(fake.arguments) + "\n" +
 		"cat > " + shellQuote(fake.prompt) + "\n" +
 		"env > " + shellQuote(fake.environment) + "\n" +
