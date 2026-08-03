@@ -265,6 +265,10 @@ func newFakeClaude(t *testing.T, options fakeClaudeOptions) fakeClaude {
 	if options.output == "" {
 		options.output = claudeEnvelope(`{"findings":[],"overall_explanation":"No defects.","overall_confidence":0.95}`)
 	}
+	outputPath := filepath.Join(root, "output.json")
+	if err := os.WriteFile(outputPath, []byte(options.output), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	loggedIn := !options.loggedOut
 	authOutput, err := json.Marshal(map[string]any{"loggedIn": loggedIn, "authMethod": "claude.ai", "apiProvider": "firstParty"})
 	if err != nil {
@@ -320,10 +324,8 @@ func newFakeClaude(t *testing.T, options fakeClaudeOptions) fakeClaude {
 		"[ -s " + shellQuote(fake.prompt) + " ] || fail_contract\n" +
 		"env > " + shellQuote(fake.environment) + "\n" +
 		reviewFailure + delay +
-		"printf '%s' " + shellQuote(options.output) + "\n"
-	if err := os.WriteFile(fake.path, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+		"cat " + shellQuote(outputPath) + "\n"
+	writeTestExecutableAt(t, fake.path, script)
 	return fake
 }
 

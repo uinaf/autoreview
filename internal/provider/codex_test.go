@@ -365,6 +365,14 @@ func newFakeCodex(t *testing.T, options fakeCodexOptions) fakeCodex {
 			"",
 		}, "\n")
 	}
+	resultPath := filepath.Join(root, "result.json")
+	if err := os.WriteFile(resultPath, []byte(options.result), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	envelopePath := filepath.Join(root, "envelope.jsonl")
+	if err := os.WriteFile(envelopePath, []byte(envelope), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	authBlock := "printf '%s\\n' 'Logged in using ChatGPT'\nexit 0"
 	if options.authError != "" {
 		authBlock = "printf '%s\\n' " + shellQuote(options.authError) + " >&2\nexit 1"
@@ -436,11 +444,9 @@ func newFakeCodex(t *testing.T, options fakeCodexOptions) fakeCodex {
 		delay +
 		"output=''\nprevious=''\nfor argument in \"$@\"; do\n  if [ \"$previous\" = \"--output-last-message\" ]; then output=\"$argument\"; fi\n  previous=\"$argument\"\ndone\n" +
 		"test -n \"$output\"\n" +
-		"printf '%s' " + shellQuote(options.result) + " > \"$output\"\n" +
-		"printf '%s' " + shellQuote(envelope) + "\n"
-	if err := os.WriteFile(fake.path, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+		"cat " + shellQuote(resultPath) + " > \"$output\"\n" +
+		"cat " + shellQuote(envelopePath) + "\n"
+	writeTestExecutableAt(t, fake.path, script)
 	return fake
 }
 

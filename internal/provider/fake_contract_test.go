@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -102,7 +103,9 @@ func assertInvalidContracts(t *testing.T, executable string, valid, conflict []s
 
 func expectContractFailure(t *testing.T, executable string, arguments []string, input string) {
 	t.Helper()
-	command := exec.Command(executable, arguments...)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, executable, arguments...)
 	command.Stdin = strings.NewReader(input)
 	output, err := command.CombinedOutput()
 	var exitError *exec.ExitError

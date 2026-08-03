@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -281,10 +282,74 @@ func TestSanitizeDiagnosticRedactsInvalidUTF8Credential(t *testing.T) {
 func writeTestExecutable(t *testing.T, name, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
-	if err := os.WriteFile(path, []byte(content), 0o700); err != nil {
+	writeTestExecutableAt(t, path, content)
+	return path
+}
+
+func writeTestExecutableAt(t *testing.T, path, content string) {
+	t.Helper()
+	const shebang = "#!/bin/sh\n"
+	if !strings.HasPrefix(content, shebang) {
+		t.Fatalf("test executable must start with %q", strings.TrimSpace(shebang))
+	}
+	content = shebang + "if [ \"${AUTOREVIEW_TEST_EXECUTABLE_PROBE:-}\" = 1 ]; then exit 0; fi\n" + strings.TrimPrefix(content, shebang)
+	temporary, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
 		t.Fatal(err)
 	}
-	return path
+	temporaryPath := temporary.Name()
+	defer func() {
+		_ = os.Remove(temporaryPath)
+	}()
+	closeAfterFailure := func(cause error) {
+		if closeErr := temporary.Close(); closeErr != nil {
+			t.Fatalf("%v; close temporary executable: %v", cause, closeErr)
+		}
+		t.Fatal(cause)
+	}
+	if _, err := temporary.WriteString(content); err != nil {
+		closeAfterFailure(err)
+	}
+	if err := temporary.Chmod(0o700); err != nil {
+		closeAfterFailure(err)
+	}
+	if err := temporary.Sync(); err != nil {
+		closeAfterFailure(err)
+	}
+	if err := temporary.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		t.Fatal(err)
+	}
+	waitForTestExecutable(t, path)
+}
+
+func waitForTestExecutable(t *testing.T, path string) {
+	t.Helper()
+	const attempts = 8
+	delay := 5 * time.Millisecond
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for attempt := 0; attempt < attempts; attempt++ {
+		command := exec.CommandContext(ctx, path)
+		command.Env = []string{"AUTOREVIEW_TEST_EXECUTABLE_PROBE=1", "PATH=/usr/bin:/bin"}
+		output, err := command.CombinedOutput()
+		if err == nil {
+			return
+		}
+		if !errors.Is(err, syscall.ETXTBSY) || attempt == attempts-1 {
+			t.Fatalf("probe test executable: %v: %s", err, output)
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			t.Fatal(ctx.Err())
+		case <-timer.C:
+		}
+		delay *= 2
+	}
 }
 
 func shellQuote(value string) string {
