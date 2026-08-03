@@ -70,8 +70,8 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Casks
     commit_author:
-      name: uinaf-releaser[bot]
-      email: 312581908+uinaf-releaser[bot]@users.noreply.github.com
+      name: "{{ .Env.RELEASE_BOT_NAME }}"
+      email: "{{ .Env.RELEASE_BOT_EMAIL }}"
     commit_msg_template: "chore(autoreview): update to {{ .Tag }}"
     homepage: https://github.com/uinaf/autoreview
     description: Structured independent code review CLI
