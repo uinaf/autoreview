@@ -23,10 +23,11 @@ graft, or shallow-boundary metadata.
 The boundary freezes the resolved target identity, exact diff, raw deleted blobs,
 untracked file contents, task prompt, and repeatable repository-relative
 context files into a length-delimited UTF-8 payload. Repository diff and context
-sections are explicitly labeled as untrusted data. Providers receive a copied
-payload and typed metadata, not a path to the live checkout.
+sections are explicitly labeled as untrusted data. Providers receive the same
+immutable payload as streamed input plus typed metadata, not a path to the live
+checkout.
 
-The aggregate bundle limit defaults to 1 MiB and is configurable up to 1 GiB.
+The aggregate bundle limit defaults to 1 MiB and is configurable up to 128 MiB.
 An oversized target fails before provider execution, reports the largest byte
 contributors from a bounded streaming count, and is never chunked. Deleted,
 untracked, and context reads share the same aggregate budget. Binary data,
@@ -38,11 +39,27 @@ metadata directory.
 
 Target collection requires Git 2.41 or newer.
 
-The snapshot includes resolved Git identity plus the raw copied index, tracked working-tree,
-status, untracked target, prompt, and context state. Collection is repeated
-before scanning to catch concurrent reads. The caller must run the supplied
-unchanged check after provider completion; a mismatch invalidates the result as
-`source_changed`.
+The snapshot includes resolved Git identity plus the raw copied index, tracked
+working-tree, status, untracked target, prompt, and context state. Source
+material is recollected before scanning to catch concurrent reads, but the
+verification pass computes only the snapshot instead of materializing a second
+bundle. Secret scanning, provider execution, and the optional protocol retry
+stream the same immutable payload without full-payload copies. The caller must
+run the supplied unchanged check after provider completion; a mismatch
+invalidates the result as `source_changed`.
+
+Allocation benchmarks cover 1, 16, 64, and 128 MiB bundle construction plus a
+diff with one million short lines:
+
+```bash
+go test ./internal/target -run '^$' \
+  -bench 'Benchmark(ComposeBundle|ParseDiffRangesManyShortLines)$' \
+  -benchmem -benchtime=1x
+```
+
+The 128 MiB ceiling keeps the supported envelope bounded while collection holds
+source material alongside one frozen payload. There is no automatic chunking or
+review fan-out above that limit.
 
 ## Secret scan
 

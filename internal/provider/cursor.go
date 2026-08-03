@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/uinaf/autoreview/internal/config"
 	"github.com/uinaf/autoreview/internal/protocol"
@@ -63,15 +62,15 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 	if !request.Config.WebAccess.Value {
 		return Result{}, newFailure(protocol.FailureCapability, "Cursor Agent cannot guarantee web_access=false because it has no documented per-run web disable", nil, nil)
 	}
-	if !utf8.ValidString(request.Prompt) || strings.TrimSpace(request.Prompt) == "" {
+	if !request.validPrompt() {
 		return Result{}, newFailure(protocol.FailureConfig, "provider prompt must be non-empty valid UTF-8", nil, nil)
 	}
 	maximumPrompt := request.Config.MaxBytes.Value + providerPromptAllowance
 	protocolBytes := int64(len(reviewpolicy.CursorReviewProtocol()))
-	if maximumPrompt < request.Config.MaxBytes.Value || protocolBytes > maximumPrompt || int64(len(request.Prompt)) > maximumPrompt-protocolBytes {
+	promptBytes, validLength := request.promptBytes()
+	if !validLength || maximumPrompt < request.Config.MaxBytes.Value || protocolBytes > maximumPrompt || promptBytes > maximumPrompt-protocolBytes {
 		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("Cursor combined review input exceeds %d bytes (bundle plus trusted protocol)", maximumPrompt), nil, nil)
 	}
-	input := reviewpolicy.CursorReviewInput(request.Prompt)
 	reviewContext, cancelReview := context.WithTimeout(ctx, time.Duration(request.Config.Timeout.Value))
 	defer cancelReview()
 	repository, err := filepath.Abs(cursor.repository)
@@ -111,7 +110,7 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 		Arguments:   cursorArguments(request.Config, runtime.Workspace, model),
 		Directory:   runtime.Workspace,
 		Environment: environment,
-		Input:       input,
+		Input:       request.promptReader(reviewpolicy.CursorReviewProtocol()),
 		Timeout:     time.Duration(request.Config.Timeout.Value),
 		StdoutLimit: providerStdoutLimit,
 		StderrLimit: providerStderrLimit,

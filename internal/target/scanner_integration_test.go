@@ -22,7 +22,7 @@ func TestTruffleHogScannerSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := scanner.Scan(context.Background(), []byte("AUTOREVIEW-BUNDLE-V1\nbenign scanner smoke input\n")); err != nil {
+	if err := scanner.Scan(context.Background(), "AUTOREVIEW-BUNDLE-V1\nbenign scanner smoke input\n"); err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
 }
@@ -44,7 +44,7 @@ func TestTruffleHogScannerDetectsCredential(t *testing.T) {
 		t.Fatal(err)
 	}
 	payload := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: encoded})
-	if err := scanner.Scan(context.Background(), payload); !errors.Is(err, ErrSecretFound) {
+	if err := scanner.Scan(context.Background(), string(payload)); !errors.Is(err, ErrSecretFound) {
 		t.Fatalf("Scan() error = %v, want ErrSecretFound", err)
 	}
 }

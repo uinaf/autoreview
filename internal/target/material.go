@@ -20,6 +20,8 @@ import (
 	"github.com/uinaf/autoreview/internal/protocol"
 )
 
+const maximumIndexBytes = int64(1 << 30)
+
 type nulRecordWriter struct {
 	buffer []byte
 	handle func([]byte) error
@@ -180,7 +182,7 @@ func (collector *Collector) newGitSandbox(ctx context.Context, root string) (_ *
 	if err := os.WriteFile(filepath.Join(directory, "HEAD"), []byte("ref: refs/heads/autoreview\n"), 0o600); err != nil {
 		return nil, fmt.Errorf("initialize isolated Git HEAD: %w", err)
 	}
-	if err := copyStableFile(filepath.Dir(originalIndex), filepath.Base(originalIndex), filepath.Join(directory, "index"), MaximumMaxBytes); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := copyStableFile(filepath.Dir(originalIndex), filepath.Base(originalIndex), filepath.Join(directory, "index"), maximumIndexBytes); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("copy Git index: %w", err)
 	}
 	excludeRoot := filepath.Dir(filepath.Dir(originalExclude))

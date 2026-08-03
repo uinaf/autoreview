@@ -36,7 +36,7 @@ Corresponding environment variables are `AUTOREVIEW_ENGINE`,
 
 Unknown keys, loose YAML booleans, multiple documents, retry counts outside
 zero or one, and invalid types fail closed. There are no profiles or local
-override files.
+override files. `max_bytes` defaults to 1 MiB and cannot exceed 128 MiB.
 
 Only an explicit CLI flag or an ownership-checked XDG file under the operating
 system account home may enable `native` isolation or web access. Repository

@@ -32,6 +32,9 @@ Unknown keys, multiple YAML documents, invalid types, and retry counts above one
 are errors. Configuration cannot contain commands, provider argument strings,
 or named profiles. There is no `.autoreview.local.yaml`.
 
+`max_bytes` defaults to 1 MiB and must be between 1 byte and 128 MiB
+(`134217728`).
+
 Each configuration file must be a regular file no larger than 64 KiB, and
 symbolic links are rejected. Boolean fields accept only `true` or `false`;
 `yes`, `no`, `on`, and `off` are invalid. A trusted account-home XDG file must

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,7 +66,7 @@ func truffleHogArguments(directory string) []string {
 	}
 }
 
-func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (returnErr error) {
+func (scanner *truffleHogScanner) Scan(ctx context.Context, payload string) (returnErr error) {
 	root, err := os.MkdirTemp("", "autoreview-scan-")
 	if err != nil {
 		return fmt.Errorf("create secret-scan directory: %w", err)
@@ -88,7 +89,13 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (ret
 		}
 	}
 	path := filepath.Join(directory, "frozen-review.txt")
-	if err := os.WriteFile(path, payload, 0o600); err != nil {
+	input, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("create secret-scan input: %w", err)
+	}
+	_, writeErr := io.Copy(input, strings.NewReader(payload))
+	closeErr := input.Close()
+	if err := errors.Join(writeErr, closeErr); err != nil {
 		return fmt.Errorf("write secret-scan input: %w", err)
 	}
 
