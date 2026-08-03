@@ -119,7 +119,7 @@ set -e
 goreleaser release --snapshot --clean --skip=publish,sign
 test "$(find dist -maxdepth 1 -name 'autoreview_*.tar.gz' -type f | wc -l | tr -d ' ')" = "4"
 for archive in dist/autoreview_*.tar.gz; do
-  test "$(tar -tzf "$archive" | sort | tr '\n' ' ')" = "autoreview LICENSE README.md "
+  test "$(tar -tzf "$archive" | LC_ALL=C sort | tr '\n' ' ')" = "LICENSE README.md autoreview "
 done
 (cd dist && shasum -a 256 -c checksums.txt)
 case "$(uname -s)-$(uname -m)" in
