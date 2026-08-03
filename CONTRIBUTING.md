@@ -17,6 +17,14 @@ Run all deterministic checks before opening or updating a pull request:
 mise run verify
 ```
 
+Before the `v0.1.0` source tag, run the complete deterministic release gate and
+the pinned hosted skill review:
+
+```bash
+mise run verify:release
+mise run skill:review
+```
+
 For command-surface changes, also exercise the built binary directly.
 For skill changes, run the pinned hosted quality gate:
 
@@ -33,5 +41,4 @@ mise run skill:review
   defects, and close the corresponding threads.
 
 Release automation, signed binary distribution, and Homebrew publishing are
-intentionally deferred until the local CLI and skill reach the proven `v0.1.0`
-milestone.
+tracked separately after the source and skill milestone.

@@ -1,5 +1,6 @@
 [tools]
 go = "1.26.2"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.6.0"
 
 [env]
 GOWORK = "off"
@@ -33,6 +34,45 @@ run = "go build ./cmd/autoreview"
 [tasks.verify]
 description = "Run deterministic repository verification"
 depends = ["fmt:check", "test", "test:race", "vet", "build"]
+
+[tasks."test:integration"]
+description = "Run CLI and scanner integration tests"
+run = '''
+set -e
+go test ./cmd/autoreview -run '^TestBinaryEndToEndWithFakeCodex$' -count=1
+go test ./internal/target -run '^Test(TruffleHogScanner|Collector)' -count=1
+(cd testdata/v0.1-fixture/after && go test ./...)
+'''
+
+[tasks.vuln]
+description = "Check reachable Go vulnerabilities"
+run = "govulncheck ./..."
+
+[tasks."build:cross"]
+description = "Cross-compile supported source targets"
+run = '''
+set -e
+GOOS=darwin GOARCH=amd64 go build -o /tmp/autoreview-darwin-amd64 ./cmd/autoreview
+GOOS=darwin GOARCH=arm64 go build -o /tmp/autoreview-darwin-arm64 ./cmd/autoreview
+GOOS=linux GOARCH=amd64 go build -o /tmp/autoreview-linux-amd64 ./cmd/autoreview
+GOOS=linux GOARCH=arm64 go build -o /tmp/autoreview-linux-arm64 ./cmd/autoreview
+'''
+
+[tasks."runtime:go-only"]
+description = "Reject Python runtime files and invocation"
+run = '''
+set -e
+test -z "$(git ls-files '*.py' '*.pyc' '*.pyo')"
+! rg -n --glob '*.go' '(python([0-9.]*)?|\.py([^A-Za-z0-9_]|$))' cmd internal schema
+'''
+
+[tasks."skill:package"]
+description = "Validate the standalone skill package and evals"
+run = "go test ./cmd/autoreview -run '^TestSkill' -count=1"
+
+[tasks."verify:release"]
+description = "Run deterministic v0.1 source-release gates"
+depends = ["verify", "test:integration", "vuln", "build:cross", "runtime:go-only", "skill:package"]
 
 [tasks."skill:review"]
 description = "Review the skill at the pinned Tessl quality threshold"
