@@ -1,6 +1,6 @@
 # File a reproducible non-security CLI defect
 
-Autoreview `0.1.0` on Linux amd64 writes its progress line to stdout before a
+Autoreview `0.1.1` on Linux amd64 writes its progress line to stdout before a
 valid JSON report when the reviewed repository path contains a space. The bug
 reproduces in a public synthetic repository with a fake provider. A diagnostic
 from the original private run also contains an absolute home path, repository

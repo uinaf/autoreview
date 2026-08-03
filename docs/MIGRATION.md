@@ -132,7 +132,7 @@ on every row:
 | Go-only runtime and supported source targets | `mise run runtime:go-only` and `mise run build:cross` |
 | Go dependency vulnerability analysis | Pinned `govulncheck` binary against the current official database in `mise run vuln` |
 | Standalone skill and evals | Package/privacy/link/CLI compatibility tests plus `mise run skill:review` |
-| Public skill distribution | Published `uinaf/autoreview@0.1.0` registry install proof |
+| Public skill distribution | Published `uinaf/autoreview@0.1.1` registry install proof |
 | Source distribution | Post-merge signed tag and isolated Go install gates recorded on issue #10 |
 
 `mise run verify:release` composes the deterministic v0.1 checks with installed

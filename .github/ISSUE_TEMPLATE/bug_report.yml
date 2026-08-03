@@ -34,7 +34,7 @@ body:
     id: version
     attributes:
       label: autoreview version
-      placeholder: autoreview 0.1.0
+      placeholder: autoreview vX.Y.Z
     validations:
       required: true
   - type: input
