@@ -127,14 +127,14 @@ func (claude *Claude) Review(ctx context.Context, request Request) (result Resul
 		class := protocol.FailureProtocol
 		attempt.Outcome = protocol.AttemptMalformed
 		attempt.ErrorClass = &class
-		return Result{}, newFailure(class, fmt.Sprintf("decode Claude envelope: %v", err), environment, &attempt)
+		return Result{}, invalidProviderOutput("Claude", "result envelope", environment, &attempt)
 	}
 	review, err := protocol.DecodeReview(reviewData)
 	if err != nil {
 		class := protocol.FailureProtocol
 		attempt.Outcome = protocol.AttemptMalformed
 		attempt.ErrorClass = &class
-		return Result{}, newFailure(class, fmt.Sprintf("decode Claude review: %v", err), environment, &attempt)
+		return Result{}, invalidProviderOutput("Claude", "review document", environment, &attempt)
 	}
 	attempt.Outcome = protocol.AttemptValid
 	return Result{
@@ -198,7 +198,7 @@ func (claude *Claude) preflight(ctx context.Context, executable, workspace strin
 			return "", probeFailure("Claude authentication", err, authResult, environment, protocol.FailureAuth)
 		}
 		if err := decodeClaudeAuth(authResult.Stdout); err != nil {
-			return "", newFailure(protocol.FailureAuth, fmt.Sprintf("Claude authentication: %v", err), environment, nil)
+			return "", newFailure(protocol.FailureAuth, "Claude returned an invalid authentication status; authenticate the provider CLI and retry", environment, nil)
 		}
 	}
 	return string(match[1]), nil

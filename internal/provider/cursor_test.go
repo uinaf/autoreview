@@ -224,6 +224,7 @@ func TestCursorReviewRejectsMalformedEnvelope(t *testing.T) {
 		{name: "failed result", output: `{"type":"result","subtype":"error","is_error":true,"result":"failed"}`},
 		{name: "missing result", output: `{"type":"result","subtype":"success","is_error":false}`},
 		{name: "duplicate key", output: `{"type":"result","type":"result","subtype":"success","is_error":false,"result":"x"}`},
+		{name: "sentinel key", output: `{"` + providerOutputSentinel + `":1,"` + providerOutputSentinel + `":2}`},
 		{name: "multiple envelopes", output: cursorEnvelope("x") + cursorEnvelope("x")},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -231,6 +232,9 @@ func TestCursorReviewRejectsMalformedEnvelope(t *testing.T) {
 			reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: fake.path, Environment: []string{"PATH=/usr/bin:/bin", "CURSOR_API_KEY=secret"}})
 			_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: cursorConfig(protocol.IsolationStrict, true, 5*time.Second)})
 			failure := assertProviderError(t, err, protocol.FailureProtocol)
+			if strings.Contains(failure.Message, providerOutputSentinel) {
+				t.Fatalf("protocol failure disclosed provider output: %q", failure.Message)
+			}
 			if failure.Attempt == nil || failure.Attempt.Outcome != protocol.AttemptMalformed {
 				t.Fatalf("attempt = %+v", failure.Attempt)
 			}
@@ -238,15 +242,18 @@ func TestCursorReviewRejectsMalformedEnvelope(t *testing.T) {
 	}
 }
 
-func TestCursorReviewRedactsProviderFailure(t *testing.T) {
+func TestCursorReviewOmitsProviderFailureOutput(t *testing.T) {
 	t.Parallel()
 
-	fake := newFakeCursor(t, fakeCursorOptions{reviewError: "\033[31mfailed with test-provider-secret\r"})
+	fake := newFakeCursor(t, fakeCursorOptions{reviewError: "\033[31m" + providerOutputSentinel + " test-provider-secret\r"})
 	reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: fake.path, Environment: []string{"PATH=/usr/bin:/bin", "CURSOR_API_KEY=test-provider-secret"}})
-	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: cursorConfig(protocol.IsolationStrict, true, 5*time.Second)})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: providerOutputSentinel, Config: cursorConfig(protocol.IsolationStrict, true, 5*time.Second)})
 	failure := assertProviderError(t, err, protocol.FailureProvider)
-	if strings.Contains(failure.Message, "test-provider-secret") || strings.ContainsRune(failure.Message, '\x1b') || !strings.Contains(failure.Message, "[redacted]") {
+	if strings.Contains(failure.Message, providerOutputSentinel) || strings.Contains(failure.Message, "test-provider-secret") || strings.ContainsRune(failure.Message, '\x1b') {
 		t.Fatalf("provider failure = %q", failure.Message)
+	}
+	if !strings.Contains(failure.Message, "exit code 7") || !strings.Contains(failure.Message, "private diagnostics") {
+		t.Fatalf("provider failure lacks safe context: %q", failure.Message)
 	}
 }
 

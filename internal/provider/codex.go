@@ -149,7 +149,7 @@ func (codex *Codex) Review(ctx context.Context, request Request) (result Result,
 		class := protocol.FailureProtocol
 		attempt.Outcome = protocol.AttemptMalformed
 		attempt.ErrorClass = &class
-		return Result{}, newFailure(class, fmt.Sprintf("decode Codex envelope: %v", err), runtime.Environment(), &attempt)
+		return Result{}, invalidProviderOutput("Codex", "event envelope", runtime.Environment(), &attempt)
 	}
 	output, err := readProviderResult(outputFile)
 	if err != nil {
@@ -169,7 +169,7 @@ func (codex *Codex) Review(ctx context.Context, request Request) (result Result,
 		class := protocol.FailureProtocol
 		attempt.Outcome = protocol.AttemptMalformed
 		attempt.ErrorClass = &class
-		return Result{}, newFailure(class, fmt.Sprintf("decode Codex review: %v", err), runtime.Environment(), &attempt)
+		return Result{}, invalidProviderOutput("Codex", "review document", runtime.Environment(), &attempt)
 	}
 	attempt.Outcome = protocol.AttemptValid
 	return Result{
@@ -340,12 +340,7 @@ func decodeCodexEnvelope(output []byte) (string, error) {
 			}
 			turnCompleted = true
 		case "error", "turn.failed":
-			detail := event.Message
-			if detail == "" && event.Error != nil {
-				encoded, _ := json.Marshal(event.Error)
-				detail = string(encoded)
-			}
-			return "", fmt.Errorf("Codex reported %s: %s", event.Type, detail)
+			return "", fmt.Errorf("Codex reported %s", event.Type)
 		case "":
 			return "", fmt.Errorf("Codex event is missing type")
 		}
@@ -409,18 +404,38 @@ func classifyProcessFailure(err error, result processResult) protocol.FailureCla
 }
 
 func processFailure(operation string, class protocol.FailureClass, err error, result processResult, environment []string, attempt *protocol.Attempt) *Error {
-	details := make([]string, 0, 2)
-	if strings.TrimSpace(string(result.Stderr)) != "" {
-		details = append(details, "stderr:\n"+string(result.Stderr))
+	kind := processExit
+	processErr := new(processError)
+	if errors.As(err, &processErr) {
+		kind = processErr.Kind
 	}
-	if strings.TrimSpace(string(result.Stdout)) != "" {
-		details = append(details, "stdout:\n"+string(result.Stdout))
+	message := fmt.Sprintf("%s failed during provider %s", operation, kind)
+	if kind == processExit && result.ExitCode >= 0 {
+		message += fmt.Sprintf(" with exit code %d", result.ExitCode)
 	}
-	message := fmt.Sprintf("%s failed: %v", operation, err)
-	if len(details) != 0 {
-		message += ":\n" + strings.Join(details, "\n")
-	}
+	message += "; " + processRecovery(class, kind)
 	return newFailure(class, message, environment, attempt)
+}
+
+func processRecovery(class protocol.FailureClass, kind processErrorKind) string {
+	switch {
+	case kind == processOutputLimit:
+		return "reduce the review target size and retry"
+	case kind == processStart:
+		return "verify the provider CLI is installed and executable, then retry"
+	case kind == processCleanup:
+		return "retry after confirming no provider process is still running"
+	case class == protocol.FailureAuth:
+		return "authenticate the provider CLI and retry"
+	case class == protocol.FailureTimeout:
+		return "retry or increase --timeout"
+	case class == protocol.FailureCancelled:
+		return "retry after the cancellation source is cleared"
+	case class == protocol.FailureCapability:
+		return "verify the provider CLI version and retry"
+	default:
+		return "retry or inspect the provider CLI directly for private diagnostics"
+	}
 }
 
 func probeFailure(operation string, err error, result processResult, environment []string, fallback protocol.FailureClass) *Error {
@@ -433,6 +448,10 @@ func probeFailure(operation string, err error, result processResult, environment
 
 func newFailure(class protocol.FailureClass, message string, environment []string, attempt *protocol.Attempt) *Error {
 	return &Error{Class: class, Message: sanitizeDiagnostic(message, environment), Attempt: attempt}
+}
+
+func invalidProviderOutput(name, phase string, environment []string, attempt *protocol.Attempt) *Error {
+	return newFailure(protocol.FailureProtocol, fmt.Sprintf("%s returned an invalid %s; retry or inspect the provider CLI directly for private diagnostics", name, phase), environment, attempt)
 }
 
 func missingCapabilities(output string, required []string) []string {

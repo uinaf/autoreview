@@ -16,6 +16,8 @@ import (
 	"github.com/uinaf/autoreview/internal/protocol"
 )
 
+const providerOutputSentinel = "AR_REVIEW_SOURCE_SENTINEL_7f8e9d"
+
 func TestBinaryEndToEndWithFakeCodex(t *testing.T) {
 	workingDirectory, err := os.Getwd()
 	if err != nil {
@@ -38,21 +40,26 @@ func TestBinaryEndToEndWithFakeCodex(t *testing.T) {
 		wantFailure  protocol.FailureClass
 		wantAttempts int
 		wantCalls    string
+		output       string
 	}{
 		{name: "clean", scenario: "clean", retries: "0", wantExit: 0, wantStatus: protocol.StatusClean, wantAttempts: 1, wantCalls: "1"},
 		{name: "findings", scenario: "findings", retries: "0", wantExit: 1, wantStatus: protocol.StatusFindings, wantAttempts: 1, wantCalls: "1"},
 		{name: "malformed retry", scenario: "retry", retries: "1", wantExit: 0, wantStatus: protocol.StatusClean, wantAttempts: 2, wantCalls: "2"},
 		{name: "provider failure", scenario: "failure", retries: "1", wantExit: 2, wantStatus: protocol.StatusFailure, wantFailure: protocol.FailureProvider, wantAttempts: 1, wantCalls: "1"},
+		{name: "provider failure terminal", scenario: "failure", retries: "1", output: "terminal", wantExit: 2, wantStatus: protocol.StatusFailure, wantFailure: protocol.FailureProvider, wantAttempts: 1, wantCalls: "1"},
 		{name: "interrupt", scenario: "delay", retries: "1", interrupt: true, wantExit: 2, wantStatus: protocol.StatusFailure, wantFailure: protocol.FailureCancelled, wantAttempts: 1, wantCalls: "1"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.output == "" {
+				test.output = "json"
+			}
 			repository := reviewRepository(t)
 			toolsDirectory, calls, providerPID := writeFakeReviewTools(t, test.scenario)
 			xdg := t.TempDir()
 			arguments := []string{
 				"review", "--repository", repository, "--mode", "local", "--engine", "codex",
-				"--retries", test.retries, "--timeout", "8s", "--output", "json",
+				"--retries", test.retries, "--timeout", "8s", "--output", test.output,
 			}
 			command := exec.Command(binary, arguments...)
 			command.Env = replaceEnvironment(os.Environ(), map[string]string{
@@ -88,21 +95,28 @@ func TestBinaryEndToEndWithFakeCodex(t *testing.T) {
 			if exitCode(runErr) != test.wantExit {
 				t.Fatalf("exit=%d want=%d err=%v stdout=%s stderr=%s", exitCode(runErr), test.wantExit, runErr, stdout.String(), stderr.String())
 			}
-			var result protocol.Report
-			if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
-				t.Fatalf("decode stdout: %v: %s", err, stdout.String())
+			if test.output == "json" {
+				var result protocol.Report
+				if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+					t.Fatalf("decode stdout: %v: %s", err, stdout.String())
+				}
+				if err := result.Validate(); err != nil {
+					t.Fatalf("validate report: %v", err)
+				}
+				if result.Status != test.wantStatus || len(result.Metadata.Attempts) != test.wantAttempts {
+					t.Fatalf("status=%s attempts=%+v", result.Status, result.Metadata.Attempts)
+				}
+				if test.wantFailure != "" && (result.Failure == nil || result.Failure.Class != test.wantFailure) {
+					t.Fatalf("failure=%+v", result.Failure)
+				}
+				if result.Metadata.ProtocolRecovery.Applied {
+					t.Fatalf("orchestration retry was misreported as provider-local recovery: %+v", result.Metadata.ProtocolRecovery)
+				}
+			} else if !strings.Contains(stdout.String(), "status: "+string(test.wantStatus)) || !strings.Contains(stdout.String(), "failure: "+string(test.wantFailure)+":") {
+				t.Fatalf("terminal report = %q", stdout.String())
 			}
-			if err := result.Validate(); err != nil {
-				t.Fatalf("validate report: %v", err)
-			}
-			if result.Status != test.wantStatus || len(result.Metadata.Attempts) != test.wantAttempts {
-				t.Fatalf("status=%s attempts=%+v", result.Status, result.Metadata.Attempts)
-			}
-			if test.wantFailure != "" && (result.Failure == nil || result.Failure.Class != test.wantFailure) {
-				t.Fatalf("failure=%+v", result.Failure)
-			}
-			if result.Metadata.ProtocolRecovery.Applied {
-				t.Fatalf("orchestration retry was misreported as provider-local recovery: %+v", result.Metadata.ProtocolRecovery)
+			if strings.Contains(stdout.String(), providerOutputSentinel) || strings.Contains(stderr.String(), providerOutputSentinel) {
+				t.Fatalf("provider output escaped into CLI report: stdout=%q stderr=%q", stdout.String(), stderr.String())
 			}
 			callCount, err := os.ReadFile(calls)
 			if err != nil || strings.TrimSpace(string(callCount)) != test.wantCalls {
@@ -144,7 +158,7 @@ func writeFakeReviewTools(t *testing.T, scenario string) (string, string, string
 		script += "if [ \"$count\" -eq 1 ]; then result='not-json'; envelope=" + shellLiteral(malformedEnvelope) + "; fi\n"
 	}
 	if scenario == "failure" {
-		script += "printf '%s\\n' 'provider crashed' >&2\nexit 7\n"
+		script += "printf '%s\\n' '" + providerOutputSentinel + "' >&2\nexit 7\n"
 	}
 	if scenario == "delay" {
 		script += "/bin/sleep 30\n"

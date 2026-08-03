@@ -128,14 +128,14 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 		class := protocol.FailureProtocol
 		attempt.Outcome = protocol.AttemptMalformed
 		attempt.ErrorClass = &class
-		return Result{}, newFailure(class, fmt.Sprintf("decode Cursor envelope: %v", err), environment, &attempt)
+		return Result{}, invalidProviderOutput("Cursor", "result envelope", environment, &attempt)
 	}
 	review, recovered, err := decodeCursorReview(inner)
 	if err != nil {
 		class := protocol.FailureProtocol
 		attempt.Outcome = protocol.AttemptMalformed
 		attempt.ErrorClass = &class
-		return Result{}, newFailure(class, fmt.Sprintf("decode Cursor review: %v", err), environment, &attempt)
+		return Result{}, invalidProviderOutput("Cursor", "review document", environment, &attempt)
 	}
 	attempt.Outcome = protocol.AttemptValid
 	recovery := protocol.ProtocolRecovery{Applied: recovered}
@@ -218,7 +218,7 @@ func (cursor *Cursor) preflight(ctx context.Context, executable, workspace strin
 			return "", probeFailure("Cursor authentication", err, authResult, environment, protocol.FailureAuth)
 		}
 		if err := decodeCursorAuth(authResult.Stdout); err != nil {
-			return "", newFailure(protocol.FailureAuth, fmt.Sprintf("Cursor authentication: %v", err), environment, nil)
+			return "", newFailure(protocol.FailureAuth, "Cursor returned an invalid authentication status; authenticate the provider CLI and retry", environment, nil)
 		}
 	}
 	return string(match[1]), nil

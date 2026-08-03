@@ -130,15 +130,18 @@ func TestClaudeReviewUsesExplicitDefaultModel(t *testing.T) {
 	}
 }
 
-func TestClaudeReviewRedactsProviderFailure(t *testing.T) {
+func TestClaudeReviewOmitsProviderFailureOutput(t *testing.T) {
 	t.Parallel()
 
-	fake := newFakeClaude(t, fakeClaudeOptions{reviewError: "\033[31mfailed with test-provider-secret\r"})
+	fake := newFakeClaude(t, fakeClaudeOptions{reviewError: "\033[31m" + providerOutputSentinel + " test-provider-secret\r"})
 	reviewer := NewClaude(ClaudeOptions{Repository: t.TempDir(), Executable: fake.path, Environment: []string{"PATH=/usr/bin:/bin", "ANTHROPIC_API_KEY=test-provider-secret"}})
-	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: claudeConfig(protocol.IsolationStrict, false, 5*time.Second)})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: providerOutputSentinel, Config: claudeConfig(protocol.IsolationStrict, false, 5*time.Second)})
 	failure := assertProviderError(t, err, protocol.FailureProvider)
-	if strings.Contains(failure.Message, "test-provider-secret") || strings.ContainsRune(failure.Message, '\x1b') || !strings.Contains(failure.Message, "[redacted]") {
+	if strings.Contains(failure.Message, providerOutputSentinel) || strings.Contains(failure.Message, "test-provider-secret") || strings.ContainsRune(failure.Message, '\x1b') {
 		t.Fatalf("provider failure = %q", failure.Message)
+	}
+	if !strings.Contains(failure.Message, "exit code 7") || !strings.Contains(failure.Message, "private diagnostics") {
+		t.Fatalf("provider failure lacks safe context: %q", failure.Message)
 	}
 }
 
@@ -185,6 +188,7 @@ func TestClaudeReviewRejectsMalformedEnvelopeAndReview(t *testing.T) {
 		{name: "failed result", output: `{"type":"result","subtype":"error","is_error":true,"structured_output":{}}`},
 		{name: "missing structured output", output: `{"type":"result","subtype":"success","is_error":false}`},
 		{name: "duplicate envelope key", output: `{"type":"result","type":"result","subtype":"success","is_error":false,"structured_output":{}}`},
+		{name: "sentinel envelope key", output: `{"` + providerOutputSentinel + `":1,"` + providerOutputSentinel + `":2}`},
 		{name: "invalid canonical review", output: claudeEnvelope(`{"findings":[]}`)},
 		{name: "duplicate review key", output: claudeEnvelope(`{"findings":[],"findings":[],"overall_explanation":"No defects.","overall_confidence":0.95}`)},
 		{name: "valid control", output: claudeEnvelope(validReview)},
@@ -200,6 +204,9 @@ func TestClaudeReviewRejectsMalformedEnvelopeAndReview(t *testing.T) {
 				return
 			}
 			failure := assertProviderError(t, err, protocol.FailureProtocol)
+			if strings.Contains(failure.Message, providerOutputSentinel) {
+				t.Fatalf("protocol failure disclosed provider output: %q", failure.Message)
+			}
 			if failure.Attempt == nil || failure.Attempt.Outcome != protocol.AttemptMalformed {
 				t.Fatalf("attempt = %+v", failure.Attempt)
 			}

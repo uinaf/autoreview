@@ -13,6 +13,8 @@ import (
 	"unicode/utf8"
 )
 
+const providerOutputSentinel = "AR_REVIEW_SOURCE_SENTINEL_7f8e9d"
+
 func TestRunProcessBoundsOutput(t *testing.T) {
 	t.Parallel()
 

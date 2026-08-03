@@ -149,19 +149,22 @@ func TestCodexReviewAcceptsExecCredentialWithoutLoginState(t *testing.T) {
 	}
 }
 
-func TestCodexReviewRedactsProviderFailure(t *testing.T) {
+func TestCodexReviewOmitsProviderFailureOutput(t *testing.T) {
 	t.Parallel()
 
-	fake := newFakeCodex(t, fakeCodexOptions{reviewError: "\033[31mfailed with test-provider-secret\r"})
+	fake := newFakeCodex(t, fakeCodexOptions{reviewError: "\033[31m" + providerOutputSentinel + " test-provider-secret\r"})
 	reviewer := NewCodex(CodexOptions{
 		Repository:  t.TempDir(),
 		Executable:  fake.path,
 		Environment: []string{"PATH=/usr/bin:/bin", "OPENAI_API_KEY=test-provider-secret"},
 	})
-	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: providerOutputSentinel, Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
 	failure := assertProviderError(t, err, protocol.FailureProvider)
-	if strings.Contains(failure.Message, "test-provider-secret") || strings.ContainsRune(failure.Message, '\x1b') || !strings.Contains(failure.Message, "[redacted]") {
+	if strings.Contains(failure.Message, providerOutputSentinel) || strings.Contains(failure.Message, "test-provider-secret") || strings.ContainsRune(failure.Message, '\x1b') {
 		t.Fatalf("provider failure = %q", failure.Message)
+	}
+	if !strings.Contains(failure.Message, "exit code 7") || !strings.Contains(failure.Message, "private diagnostics") {
+		t.Fatalf("provider failure lacks safe context: %q", failure.Message)
 	}
 	if failure.Attempt == nil || failure.Attempt.Outcome != protocol.AttemptFailed {
 		t.Fatalf("attempt = %+v", failure.Attempt)
@@ -230,6 +233,7 @@ func TestCodexReviewRejectsMalformedOrInconsistentOutput(t *testing.T) {
 		{name: "malformed review", options: fakeCodexOptions{result: `{"findings":[]}`}},
 		{name: "envelope mismatch", options: fakeCodexOptions{envelopeMessage: `{"findings":[],"overall_explanation":"Different.","overall_confidence":0.9}`}},
 		{name: "invalid envelope", options: fakeCodexOptions{rawEnvelope: "not-json\n"}},
+		{name: "provider error sentinel", options: fakeCodexOptions{rawEnvelope: `{"type":"error","message":"` + providerOutputSentinel + `"}` + "\n"}},
 		{
 			name: "event after completion",
 			options: fakeCodexOptions{rawEnvelope: strings.Join([]string{
@@ -250,6 +254,9 @@ func TestCodexReviewRejectsMalformedOrInconsistentOutput(t *testing.T) {
 			})
 			_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
 			failure := assertProviderError(t, err, protocol.FailureProtocol)
+			if strings.Contains(failure.Message, providerOutputSentinel) {
+				t.Fatalf("protocol failure disclosed provider output: %q", failure.Message)
+			}
 			if failure.Attempt == nil || failure.Attempt.Outcome != protocol.AttemptMalformed {
 				t.Fatalf("attempt = %+v", failure.Attempt)
 			}
