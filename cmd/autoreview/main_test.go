@@ -148,13 +148,14 @@ func TestReviewCommandClassifiesSecretTimeoutAndCancellation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		scanner   target.Scanner
-		reviewer  *scriptedReviewer
-		wantClass protocol.FailureClass
-		wantCalls int
+		name        string
+		scanner     target.Scanner
+		reviewer    *scriptedReviewer
+		wantClass   protocol.FailureClass
+		wantMessage string
+		wantCalls   int
 	}{
-		{name: "secret", scanner: scannerError{err: target.ErrSecretFound}, reviewer: &scriptedReviewer{}, wantClass: protocol.FailureSecretScan, wantCalls: 0},
+		{name: "secret", scanner: scannerError{err: target.ErrSecretFound}, reviewer: &scriptedReviewer{}, wantClass: protocol.FailureSecretScan, wantMessage: target.ErrSecretFound.Error(), wantCalls: 0},
 		{name: "timeout", scanner: cleanScanner{}, reviewer: &scriptedReviewer{results: []reviewStep{{err: providerError(protocol.FailureTimeout, protocol.AttemptFailed)}}}, wantClass: protocol.FailureTimeout, wantCalls: 1},
 		{name: "cancelled", scanner: cleanScanner{}, reviewer: &scriptedReviewer{results: []reviewStep{{err: providerError(protocol.FailureCancelled, protocol.AttemptFailed)}}}, wantClass: protocol.FailureCancelled, wantCalls: 1},
 	}
@@ -172,6 +173,9 @@ func TestReviewCommandClassifiesSecretTimeoutAndCancellation(t *testing.T) {
 			}
 			if result.Failure == nil || result.Failure.Class != test.wantClass {
 				t.Fatalf("failure = %+v", result.Failure)
+			}
+			if test.wantMessage != "" && result.Failure.Message != test.wantMessage {
+				t.Fatalf("failure message = %q, want %q", result.Failure.Message, test.wantMessage)
 			}
 		})
 	}
