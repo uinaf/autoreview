@@ -50,5 +50,7 @@ The installed `trufflehog` executable scans the complete frozen payload,
 including deleted bytes and appended context. It runs offline with verification
 disabled, no update check, one worker, no inherited environment, and
 `--fail-on-scan-errors`. Any detection, scan error, missing executable, output
-overflow, or cancellation is an operational failure. TruffleHog is an external
-runtime dependency; its AGPL code is not linked or embedded in this MIT project.
+overflow, or cancellation is an operational failure. The scanner runs in its
+own process group and terminates remaining descendants before returning on any
+exit path. TruffleHog is an external runtime dependency; its AGPL code is not
+linked or embedded in this MIT project.

@@ -75,7 +75,7 @@ exclusions rather than gaps.
 | Web search enabled by default | Improve | Default off; only CLI or trusted XDG config may enable | #4 |
 | Claude read-only web tools | Improve | Capability-aware strict/native policy, with web separately authorized | #6 |
 | Process heartbeat and platform `ps` sampling | Improve | Bounded progress plus duration metadata without scraping process tables | #5 |
-| Timeout, cancellation, and child cleanup | Port | Shared Go process runner terminates the provider tree reliably | #5 |
+| Timeout, cancellation, and child cleanup | Port | Shared Go process runner terminates the provider tree before leader reap on every exit | #5, #29 |
 | Bounded and terminal-escaped provider output | Port | Shared runner bounds raw streams and exposes sanitized diagnostics | #5 |
 | Codex structured response decoding | Improve | Codex-compatible generation schema plus strict canonical local decoding | #5 |
 | Claude structured envelope decoding | Port | Strict provider review schema | #6 |

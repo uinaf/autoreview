@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/uinaf/autoreview/internal/processgroup"
 )
 
 type processErrorKind string
@@ -19,6 +21,7 @@ const (
 	processTimeout     processErrorKind = "timeout"
 	processCancelled   processErrorKind = "cancelled"
 	processOutputLimit processErrorKind = "output_limit"
+	processCleanup     processErrorKind = "cleanup"
 )
 
 type processSpec struct {
@@ -62,15 +65,11 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	}
 	runContext, cancel := context.WithTimeout(ctx, spec.Timeout)
 	defer cancel()
-	command := exec.CommandContext(runContext, spec.Path, spec.Arguments...)
+	//nolint:noctx // processgroup.Run owns cancellation so it can kill the group before reaping the leader.
+	command := exec.Command(spec.Path, spec.Arguments...)
 	command.Dir = spec.Directory
 	command.Env = append(make([]string, 0, len(spec.Environment)), spec.Environment...)
 	command.Stdin = bytes.NewReader(spec.Input)
-	configureProcess(command)
-	command.Cancel = func() error {
-		return killProcessGroup(command.Process)
-	}
-	command.WaitDelay = 2 * time.Second
 	var overflow atomic.Bool
 	stdout := newBoundedBuffer(spec.StdoutLimit, func() {
 		overflow.Store(true)
@@ -83,16 +82,22 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	command.Stdout = stdout
 	command.Stderr = stderr
 	started := time.Now()
-	err := command.Run()
+	runResult := processgroup.Run(runContext, command)
 	result := processResult{
 		Stdout:   stdout.Bytes(),
 		Stderr:   stderr.Bytes(),
 		ExitCode: 0,
 		Duration: time.Since(started),
 	}
-	if err == nil {
+	if runResult.CommandErr == nil && runResult.CleanupErr == nil {
 		return result, nil
 	}
+	if runResult.CommandErr == nil {
+		result.Stdout = nil
+		result.Stderr = nil
+		return result, &processError{Kind: processCleanup, Result: result, Err: runResult.CleanupErr}
+	}
+	err := errors.Join(runResult.CommandErr, runResult.CleanupErr)
 	if exitError := new(exec.ExitError); errors.As(err, &exitError) {
 		result.ExitCode = exitError.ExitCode()
 	} else {

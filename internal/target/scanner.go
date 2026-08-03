@@ -9,7 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
+
+	"github.com/uinaf/autoreview/internal/processgroup"
 )
 
 type truffleHogScanner struct {
@@ -58,7 +59,8 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (ret
 		return fmt.Errorf("write secret-scan input: %w", err)
 	}
 
-	command := exec.CommandContext(ctx, scanner.path,
+	//nolint:noctx // processgroup.Run owns cancellation so it can kill the group before reaping the leader.
+	command := exec.Command(scanner.path,
 		"filesystem",
 		"--no-update",
 		"--no-verification",
@@ -71,30 +73,32 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (ret
 		directory,
 	)
 	command.Env = hardenedScannerEnvironment(home)
-	command.WaitDelay = 2 * time.Second
 	stdout := newLimitBuffer(1 << 20)
 	stderr := newLimitBuffer(diagnosticLimit)
 	command.Stdout = stdout
 	command.Stderr = stderr
-	err = command.Run()
+	runResult := processgroup.Run(ctx, command)
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return ctxErr
+		return errors.Join(ctxErr, runResult.CleanupErr)
 	}
 	if stdout.exceeded {
-		return fmt.Errorf("trufflehog output exceeded safe diagnostic limit")
+		return errors.Join(fmt.Errorf("trufflehog output exceeded safe diagnostic limit"), runResult.CleanupErr)
 	}
 	if stderr.exceeded {
-		return fmt.Errorf("trufflehog diagnostic output exceeded safe limit")
+		return errors.Join(fmt.Errorf("trufflehog diagnostic output exceeded safe limit"), runResult.CleanupErr)
 	}
 	if len(bytes.TrimSpace(stdout.Bytes())) > 0 {
-		return ErrSecretFound
+		return errors.Join(ErrSecretFound, runResult.CleanupErr)
 	}
-	if err != nil {
+	if runResult.CommandErr != nil {
 		diagnostic := sanitizeDiagnostic(strings.TrimSpace(stderr.String()))
 		if diagnostic == "" {
 			diagnostic = "no diagnostic output"
 		}
-		return fmt.Errorf("trufflehog scan failed: %s: %w", diagnostic, err)
+		return errors.Join(fmt.Errorf("trufflehog scan failed: %s: %w", diagnostic, runResult.CommandErr), runResult.CleanupErr)
+	}
+	if runResult.CleanupErr != nil {
+		return fmt.Errorf("trufflehog process cleanup failed: %w", runResult.CleanupErr)
 	}
 	return nil
 }
