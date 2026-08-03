@@ -46,7 +46,7 @@ Replace the example archive version and target with the release being checked.
 Pull-request jobs receive read-only repository access and no release secrets.
 The main-only release job enters the protected `release` Environment only after
 macOS/Linux verification and snapshot packaging pass. It mints a short-lived
-`uinaf-release-bot` installation token explicitly scoped to `autoreview` and
+`uinaf-releaser` installation token explicitly scoped to `autoreview` and
 `homebrew-tap` with Contents write permission.
 
 Semantic Release owns version selection, release notes, the Git tag, and the

@@ -59,6 +59,6 @@ macOS/Linux verification and snapshot-package jobs pass. `fix`, `perf`, and
 a major; and docs, test, chore, build, and CI changes do not publish.
 
 The release job creates no version-bump commit. It mints a short-lived
-`uinaf-release-bot` token inside the `release` Environment, creates the tag and
+`uinaf-releaser` token inside the `release` Environment, creates the tag and
 GitHub Release, signs and attests the artifacts, and updates the Homebrew tap.
 See [Releases](docs/RELEASES.md) for the complete contract and recovery path.
