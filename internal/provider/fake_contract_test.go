@@ -74,6 +74,7 @@ func assertInvalidContracts(t *testing.T, executable string, valid, conflict []s
 		name      string
 		arguments []string
 	}{
+		{name: "missing prompt", arguments: append([]string(nil), valid...)},
 		{name: "unknown flag", arguments: appendCopy(valid, "--unknown")},
 		{name: "duplicate flag", arguments: appendCopy(valid, "--model", "duplicate")},
 		{name: "conflicting flag", arguments: appendCopy(valid, conflict...)},

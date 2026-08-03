@@ -422,6 +422,7 @@ func newFakeCodex(t *testing.T, options fakeCodexOptions) fakeCodex {
 		"validate_review \"$@\" || fail_contract\n" +
 		"printf '%s\\n' \"$@\" > " + shellQuote(fake.arguments) + "\n" +
 		"cat > " + shellQuote(fake.prompt) + "\n" +
+		"[ -s " + shellQuote(fake.prompt) + " ] || fail_contract\n" +
 		"env > " + shellQuote(fake.environment) + "\n" +
 		"pwd > " + shellQuote(fake.directory) + "\n" +
 		reviewFailure +

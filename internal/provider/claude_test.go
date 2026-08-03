@@ -310,6 +310,7 @@ func newFakeClaude(t *testing.T, options fakeClaudeOptions) fakeClaude {
 		"validate_review \"$@\" || fail_contract\n" +
 		"printf '%s\\n' \"$@\" > " + shellQuote(fake.arguments) + "\n" +
 		"cat > " + shellQuote(fake.prompt) + "\n" +
+		"[ -s " + shellQuote(fake.prompt) + " ] || fail_contract\n" +
 		"env > " + shellQuote(fake.environment) + "\n" +
 		reviewFailure + delay +
 		"printf '%s' " + shellQuote(options.output) + "\n"
