@@ -101,7 +101,14 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.release-bot.outputs.token }}
           APP_SLUG: ${{ steps.release-bot.outputs.app-slug }}
-        run: echo "user-id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          if [[ ! "$user_id" =~ ^[0-9]+$ ]]; then
+            echo "failed to resolve numeric bot user id for ${APP_SLUG}[bot]" >&2
+            exit 1
+          fi
+          echo "user-id=${user_id}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -159,6 +166,8 @@ jobs:
           GITHUB_TOKEN: ${{ steps.release-bot.outputs.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.release-bot.outputs.token }}
           GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
+          RELEASE_BOT_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
+          RELEASE_BOT_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
 
       - name: Verify checksums and signature
         if: steps.tag.outputs.present == 'true'
