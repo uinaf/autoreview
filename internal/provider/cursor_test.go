@@ -20,6 +20,7 @@ import (
 func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 	t.Parallel()
 
+	const bundle = "frozen review bundle"
 	fake := newFakeCursor(t, fakeCursorOptions{authError: "not authenticated"})
 	reviewer := NewCursor(CursorOptions{
 		Repository: t.TempDir(), Executable: fake.path,
@@ -30,7 +31,7 @@ func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 			"HOME=/private/home",
 		},
 	})
-	result, err := reviewer.Review(context.Background(), Request{Prompt: "frozen review bundle", Config: cursorConfig(protocol.IsolationStrict, true, 5*time.Second)})
+	result, err := reviewer.Review(context.Background(), Request{Prompt: bundle, Config: cursorConfig(protocol.IsolationStrict, true, 5*time.Second)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,11 +44,13 @@ func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 	prompt := readTestFile(t, fake.prompt)
 	reviewProtocol := reviewpolicy.CursorReviewProtocol()
 	schemaBoundary := "BEGIN AUTOREVIEW-TRUSTED-REVIEW-SCHEMA-V1\n" + string(contractschema.ReviewV1()) + "\nEND AUTOREVIEW-TRUSTED-REVIEW-SCHEMA-V1\n"
-	if prompt != "frozen review bundle"+reviewProtocol ||
+	if len(prompt) != len(bundle)+len(reviewProtocol) ||
+		!strings.HasPrefix(prompt, bundle) ||
+		prompt[len(bundle):] != reviewProtocol ||
 		!strings.HasPrefix(reviewProtocol, "\nAUTOREVIEW-TRUSTED-REVIEW-PROTOCOL-V1\n") ||
 		!strings.Contains(reviewProtocol, schemaBoundary) ||
 		!strings.HasSuffix(reviewProtocol, "Return only the review JSON object now.\n") {
-		t.Fatalf("provider stdin omitted trusted review protocol: %q", prompt)
+		t.Fatalf("provider stdin omitted trusted review protocol: input bytes=%d, bundle bytes=%d, protocol bytes=%d", len(prompt), len(bundle), len(reviewProtocol))
 	}
 	arguments := strings.Split(strings.TrimSpace(readTestFile(t, fake.arguments)), "\n")
 	for _, required := range []string{"--print", "--output-format", "json", "--mode", "ask", "--sandbox", "enabled", "--workspace", "--trust", "--model", "test-model"} {
