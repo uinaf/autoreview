@@ -37,8 +37,12 @@ func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 	if result.Attempt.Outcome != protocol.AttemptValid || result.ProtocolRecovery.Applied || len(result.Review.Findings) != 0 {
 		t.Fatalf("result = %+v", result)
 	}
-	if prompt := readTestFile(t, fake.prompt); prompt != "frozen review bundle" {
-		t.Fatalf("provider stdin = %q", prompt)
+	prompt := readTestFile(t, fake.prompt)
+	if !strings.HasPrefix(prompt, "frozen review bundle\nAUTOREVIEW-TRUSTED-REVIEW-PROTOCOL-V1\n") ||
+		!strings.Contains(prompt, `"required": [`) ||
+		!strings.Contains(prompt, `"overall_explanation"`) ||
+		!strings.HasSuffix(prompt, "Return only the review JSON object now.\n") {
+		t.Fatalf("provider stdin omitted trusted review protocol: %q", prompt)
 	}
 	arguments := strings.Split(strings.TrimSpace(readTestFile(t, fake.arguments)), "\n")
 	for _, required := range []string{"--print", "--output-format", "json", "--mode", "ask", "--sandbox", "enabled", "--workspace", "--trust", "--model", "test-model"} {

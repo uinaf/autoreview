@@ -113,12 +113,14 @@ IDs encode effort, so a separate non-default `reasoning_effort` is rejected.
 There is no fallback.
 
 The outer JSON must be one successful Cursor `result` envelope with a non-empty
-string result. The inner result is first decoded as exactly one canonical review
-object. If that fails, the only recovery accepts non-JSON prose followed by one
-complete canonical object that consumes the remaining suffix. Fences, ambiguous
-braces, JSON-value prefixes, malformed or multiple objects, suffix prose, and
-non-canonical reviews fail closed. Successful recovery is recorded as
-`cursor_trailing_object`.
+string result. Because Cursor's JSON output format does not constrain that inner
+assistant text, the adapter appends a trusted protocol instruction and the exact
+embedded review schema after the frozen bundle. The inner result is first decoded
+as exactly one canonical review object. If that fails, the only recovery accepts
+non-JSON prose followed by one complete canonical object that consumes the
+remaining suffix. Fences, ambiguous braces, JSON-value prefixes, malformed or
+multiple objects, suffix prose, and non-canonical reviews fail closed. Successful
+recovery is recorded as `cursor_trailing_object`.
 
 Default tests use a controlled fake executable and a complete recovery matrix.
 The optional authenticated smoke is:
