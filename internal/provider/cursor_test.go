@@ -120,6 +120,21 @@ func TestCursorReviewRejectsUnsupportedWebPolicyBeforeDiscovery(t *testing.T) {
 	}
 }
 
+func TestCursorReviewRejectsPromptWhenProtocolExceedsAllowanceBeforeDiscovery(t *testing.T) {
+	t.Parallel()
+
+	effective := cursorConfig(protocol.IsolationStrict, true, 5*time.Second)
+	effective.MaxBytes = config.Value[int64]{Value: 1, Source: config.SourceFlag}
+	maximumPrompt := effective.MaxBytes.Value + providerPromptAllowance
+	prompt := strings.Repeat("x", int(maximumPrompt-int64(len(cursorReviewProtocol))+1))
+	reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: "missing-cursor-agent"})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: prompt, Config: effective})
+	failure := assertProviderError(t, err, protocol.FailureConfig)
+	if !strings.Contains(failure.Message, "provider prompt exceeds") {
+		t.Fatalf("failure = %q", failure.Message)
+	}
+}
+
 func TestCursorReviewRejectsSeparateReasoningConfiguration(t *testing.T) {
 	t.Parallel()
 
