@@ -95,8 +95,10 @@ and arm64. GitHub Checks integration, signed binary assets, automated
 publishing, and Homebrew distribution are deferred to [issue #11](https://github.com/uinaf/autoreview/issues/11).
 
 The [migration matrix](docs/MIGRATION.md) records the Python-to-Go decisions and
-their v0.1 evidence. [NOTICE](NOTICE) records upstream provenance. The project
-is MIT licensed.
+their v0.1 evidence. This project succeeds the
+[original autoreview workflow](https://github.com/openclaw/agent-skills/tree/main/skills/autoreview),
+and its [MIT license](LICENSE) preserves the copyright notices for both
+`openclaw` and `uinaf`.
 
 ## Contributing
 
