@@ -26,7 +26,7 @@ type Request struct {
 }
 
 type Scanner interface {
-	Scan(context.Context, []byte) error
+	Scan(context.Context, string) error
 }
 
 type Options struct {
@@ -124,12 +124,12 @@ type Bundle struct {
 	request      Request
 	collector    *Collector
 	target       protocol.Target
-	payload      []byte
+	payload      string
 	contributors []Contributor
 }
 
-func (bundle *Bundle) Payload() []byte {
-	return append([]byte(nil), bundle.payload...)
+func (bundle *Bundle) Payload() string {
+	return bundle.payload
 }
 
 func (bundle *Bundle) Repository() string {
@@ -150,7 +150,7 @@ func (bundle *Bundle) Contributors() []Contributor {
 }
 
 func (bundle *Bundle) VerifyUnchanged(ctx context.Context) error {
-	current, err := bundle.collector.collect(ctx, bundle.repository, bundle.request)
+	current, err := bundle.collector.collect(ctx, bundle.repository, bundle.request, false)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr

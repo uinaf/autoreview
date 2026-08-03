@@ -62,8 +62,10 @@ func (writer *diffWriter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func (writer *diffWriter) Bytes() []byte {
-	return writer.buffer.Bytes()
+func (writer *diffWriter) TakeBytes() []byte {
+	result := writer.buffer.buffer.Bytes()
+	writer.buffer.buffer = bytes.Buffer{}
+	return result
 }
 
 func (writer *diffWriter) Exceeded() bool {
@@ -99,8 +101,14 @@ func (writer *diffWriter) TopContributors() []Contributor {
 func parseDiffRanges(diff []byte, paths []string) (map[string][]protocol.LineRange, error) {
 	ranges := map[string][]protocol.LineRange{}
 	section := -1
-	for _, rawLine := range bytes.Split(diff, []byte{'\n'}) {
-		line := string(rawLine)
+	for start := 0; start <= len(diff); {
+		end := bytes.IndexByte(diff[start:], '\n')
+		if end < 0 {
+			end = len(diff)
+		} else {
+			end += start
+		}
+		rawLine := diff[start:end]
 		switch {
 		case bytes.HasPrefix(rawLine, []byte("diff --git ")):
 			section++
@@ -108,6 +116,7 @@ func parseDiffRanges(diff []byte, paths []string) (map[string][]protocol.LineRan
 				return nil, fmt.Errorf("diff has more file sections than path inventory")
 			}
 		case section >= 0 && bytes.HasPrefix(rawLine, []byte("@@ ")):
+			line := string(rawLine)
 			matches := hunkHeader.FindStringSubmatch(line)
 			if matches == nil {
 				return nil, fmt.Errorf("malformed diff hunk header")
@@ -147,6 +156,10 @@ func parseDiffRanges(diff []byte, paths []string) (map[string][]protocol.LineRan
 			end := start + count - 1
 			ranges[path] = append(ranges[path], protocol.LineRange{StartLine: start, EndLine: end})
 		}
+		if end == len(diff) {
+			break
+		}
+		start = end + 1
 	}
 	if section+1 != len(paths) {
 		return nil, fmt.Errorf("diff file sections do not match path inventory")

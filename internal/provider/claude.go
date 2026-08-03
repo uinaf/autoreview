@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/uinaf/autoreview/internal/config"
 	"github.com/uinaf/autoreview/internal/protocol"
@@ -62,11 +61,12 @@ func (claude *Claude) Review(ctx context.Context, request Request) (result Resul
 	default:
 		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("Claude does not support reasoning effort %q", request.Config.ReasoningEffort.Value), nil, nil)
 	}
-	if !utf8.ValidString(request.Prompt) || strings.TrimSpace(request.Prompt) == "" {
+	if !request.validPrompt() {
 		return Result{}, newFailure(protocol.FailureConfig, "provider prompt must be non-empty valid UTF-8", nil, nil)
 	}
 	maximumPrompt := request.Config.MaxBytes.Value + providerPromptAllowance
-	if maximumPrompt < request.Config.MaxBytes.Value || int64(len(request.Prompt)) > maximumPrompt {
+	promptBytes, validLength := request.promptBytes()
+	if !validLength || maximumPrompt < request.Config.MaxBytes.Value || promptBytes > maximumPrompt {
 		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("provider prompt exceeds %d bytes", maximumPrompt), nil, nil)
 	}
 	reviewContext, cancelReview := context.WithTimeout(ctx, time.Duration(request.Config.Timeout.Value))
@@ -110,7 +110,7 @@ func (claude *Claude) Review(ctx context.Context, request Request) (result Resul
 		Arguments:   claudeArguments(request.Config, string(providerSchema), model),
 		Directory:   runtime.Workspace,
 		Environment: environment,
-		Input:       []byte(request.Prompt),
+		Input:       request.promptReader(""),
 		Timeout:     time.Duration(request.Config.Timeout.Value),
 		StdoutLimit: providerStdoutLimit,
 		StderrLimit: providerStderrLimit,

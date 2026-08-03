@@ -66,17 +66,18 @@ func Run(ctx context.Context, options Options) protocol.Report {
 	}
 
 	attempts := make([]protocol.Attempt, 0, options.Config.Retries.Value+1)
-	prompt := string(bundle.Payload())
+	prompt := bundle.Payload()
 	for attemptNumber := 1; attemptNumber <= options.Config.Retries.Value+1; attemptNumber++ {
+		trustedSuffix := ""
 		if attemptNumber == 1 {
 			progress("reviewing with " + string(options.Config.Engine.Value))
 		} else {
 			progress("retrying malformed provider response")
-			prompt = string(bundle.Payload()) + retryInstruction
+			trustedSuffix = retryInstruction
 		}
 
 		attemptStarted := now()
-		result, reviewErr := reviewer.Review(ctx, provider.Request{Prompt: prompt, Config: options.Config})
+		result, reviewErr := reviewer.Review(ctx, provider.Request{Prompt: prompt, TrustedSuffix: trustedSuffix, Config: options.Config})
 		attemptDuration := elapsedMilliseconds(attemptStarted, now())
 
 		if reviewErr != nil {

@@ -20,14 +20,14 @@ import (
 )
 
 type recordingScanner struct {
-	payload []byte
+	payload string
 	err     error
 	calls   int
 }
 
-func (scanner *recordingScanner) Scan(_ context.Context, payload []byte) error {
+func (scanner *recordingScanner) Scan(_ context.Context, payload string) error {
 	scanner.calls++
-	scanner.payload = append([]byte(nil), payload...)
+	scanner.payload = payload
 	return scanner.err
 }
 
@@ -59,10 +59,10 @@ func TestFreezeLocalCapturesCompleteImmutableTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Freeze() error = %v", err)
 	}
-	if scanner.calls != 1 || !bytes.Equal(scanner.payload, bundle.Payload()) {
+	if scanner.calls != 1 || scanner.payload != bundle.Payload() {
 		t.Fatal("scanner did not receive the complete frozen payload")
 	}
-	payload := string(bundle.Payload())
+	payload := bundle.Payload()
 	for _, expected := range []string{"Find correctness defects.", "deleted-secret-value", "staged.txt", "untracked.txt", "one\ntwo", "trusted reference"} {
 		if !strings.Contains(payload, expected) {
 			t.Errorf("payload does not contain %q", expected)
@@ -102,7 +102,7 @@ func TestFreezeBatchesDeletedBlobReads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Freeze() error = %v", err)
 	}
-	payload := string(bundle.Payload())
+	payload := bundle.Payload()
 	for index := 0; index < 20; index++ {
 		if !strings.Contains(payload, fmt.Sprintf("deleted content %02d", index)) {
 			t.Errorf("payload omitted deleted blob %02d", index)
@@ -304,7 +304,7 @@ func TestFreezePreservesStagedChangeCounteractedInWorktree(t *testing.T) {
 	if got := targetPaths(bundle.Target()); !equalStrings(got, []string{"file.txt"}) {
 		t.Fatalf("target paths = %v", got)
 	}
-	if !bytes.Contains(bundle.Payload(), []byte("staged content")) {
+	if !strings.Contains(bundle.Payload(), "staged content") {
 		t.Fatal("payload omitted counteracted staged bytes")
 	}
 }
@@ -884,7 +884,7 @@ func TestScannerUsesSeparateHomeAndPreservesExitError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = scanner.Scan(context.Background(), []byte("benign"))
+	err = scanner.Scan(context.Background(), "benign")
 	var exitError *exec.ExitError
 	if !errors.As(err, &exitError) || exitError.ExitCode() != 7 {
 		t.Fatalf("Scan() error = %v, want wrapped exit code 7", err)
@@ -1045,7 +1045,7 @@ func TestFreezeCancelsBlockingScanner(t *testing.T) {
 	repository := committedRepository(t)
 	writeFile(t, repository, "file.txt", "changed\n")
 	ctx, cancel := context.WithCancel(context.Background())
-	scanner := ScannerFunc(func(ctx context.Context, _ []byte) error {
+	scanner := ScannerFunc(func(ctx context.Context, _ string) error {
 		cancel()
 		<-ctx.Done()
 		return ctx.Err()
@@ -1073,7 +1073,7 @@ func TestScannerReceivesDeletedBytes(t *testing.T) {
 	if _, err := newCollector(t, scanner).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal}); err != nil {
 		t.Fatalf("Freeze() error = %v", err)
 	}
-	if !bytes.Contains(scanner.payload, []byte("deleted-secret-sentinel-value")) {
+	if !strings.Contains(scanner.payload, "deleted-secret-sentinel-value") {
 		t.Fatal("secret scanner payload omitted deleted bytes")
 	}
 }
@@ -1093,7 +1093,7 @@ func TestScannerReceivesRawMultilineDeletedBytes(t *testing.T) {
 	if _, err := newCollector(t, scanner).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal}); err != nil {
 		t.Fatalf("Freeze() error = %v", err)
 	}
-	if !bytes.Contains(scanner.payload, []byte(deleted)) {
+	if !strings.Contains(scanner.payload, deleted) {
 		t.Fatal("secret scanner payload omitted contiguous raw deleted bytes")
 	}
 }
@@ -1154,9 +1154,9 @@ func repositoryBoundaryFixture(t *testing.T) string {
 	return repository
 }
 
-type ScannerFunc func(context.Context, []byte) error
+type ScannerFunc func(context.Context, string) error
 
-func (scan ScannerFunc) Scan(ctx context.Context, payload []byte) error {
+func (scan ScannerFunc) Scan(ctx context.Context, payload string) error {
 	return scan(ctx, payload)
 }
 

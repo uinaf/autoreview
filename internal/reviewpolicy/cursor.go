@@ -15,10 +15,3 @@ Return only the review JSON object now.
 func CursorReviewProtocol() string {
 	return cursorReviewProtocol
 }
-
-func CursorReviewInput(bundle string) []byte {
-	input := make([]byte, len(bundle)+len(cursorReviewProtocol))
-	offset := copy(input, bundle)
-	copy(input[offset:], cursorReviewProtocol)
-	return input
-}

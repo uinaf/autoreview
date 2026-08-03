@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"sync"
 	"sync/atomic"
@@ -29,7 +30,7 @@ type processSpec struct {
 	Arguments   []string
 	Directory   string
 	Environment []string
-	Input       []byte
+	Input       io.Reader
 	Timeout     time.Duration
 	StdoutLimit int64
 	StderrLimit int64
@@ -69,7 +70,7 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	command := exec.Command(spec.Path, spec.Arguments...)
 	command.Dir = spec.Directory
 	command.Env = append(make([]string, 0, len(spec.Environment)), spec.Environment...)
-	command.Stdin = bytes.NewReader(spec.Input)
+	command.Stdin = spec.Input
 	var overflow atomic.Bool
 	stdout := newBoundedBuffer(spec.StdoutLimit, func() {
 		overflow.Store(true)

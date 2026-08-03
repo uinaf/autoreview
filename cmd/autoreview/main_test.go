@@ -366,7 +366,7 @@ type scriptedReviewer struct {
 }
 
 func (reviewer *scriptedReviewer) Review(_ context.Context, request provider.Request) (provider.Result, error) {
-	reviewer.prompts = append(reviewer.prompts, request.Prompt)
+	reviewer.prompts = append(reviewer.prompts, request.Prompt+request.TrustedSuffix)
 	index := len(reviewer.prompts) - 1
 	if index >= len(reviewer.results) {
 		return provider.Result{}, errors.New("unexpected review call")
@@ -380,11 +380,11 @@ func (reviewer *scriptedReviewer) Review(_ context.Context, request provider.Req
 
 type cleanScanner struct{}
 
-func (cleanScanner) Scan(context.Context, []byte) error { return nil }
+func (cleanScanner) Scan(context.Context, string) error { return nil }
 
 type scannerError struct{ err error }
 
-func (scanner scannerError) Scan(context.Context, []byte) error { return scanner.err }
+func (scanner scannerError) Scan(context.Context, string) error { return scanner.err }
 
 func cleanResult() provider.Result {
 	return provider.Result{

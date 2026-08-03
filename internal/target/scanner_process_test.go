@@ -28,7 +28,7 @@ func TestTruffleHogScannerCancellationKillsDescendants(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- scanner.Scan(ctx, []byte("benign"))
+		done <- scanner.Scan(ctx, "benign")
 	}()
 	pid := waitForChildPID(t, childPID)
 	cancel()
@@ -77,7 +77,7 @@ func TestTruffleHogScannerCleansDescendantsAfterLeaderExit(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = scanner.Scan(context.Background(), []byte("benign"))
+			err = scanner.Scan(context.Background(), "benign")
 			if test.exitStatus == 0 {
 				if err != nil {
 					t.Fatal(err)
