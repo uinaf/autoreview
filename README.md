@@ -15,7 +15,8 @@ autoreview --version
 ```
 
 Runtime dependencies are Git 2.41 or newer, the `trufflehog` executable, and
-exactly one supported review harness available on `PATH`.
+the selected review harness available on `PATH`. Multiple supported harnesses
+may be installed; `--engine` selects exactly one for each run.
 
 Install the standalone skill from Tessl into a Codex project:
 

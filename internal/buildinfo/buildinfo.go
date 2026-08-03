@@ -2,8 +2,9 @@ package buildinfo
 
 import (
 	"fmt"
-	"regexp"
 	"runtime/debug"
+
+	"golang.org/x/mod/module"
 )
 
 var (
@@ -35,8 +36,6 @@ func resolve(linkedVersion, linkedCommit string, build *debug.BuildInfo, ok bool
 	return linkedVersion, linkedCommit
 }
 
-var pseudoVersion = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+-(?:0\.)?[0-9]{14}-[0-9a-f]+(?:\+.*)?$`)
-
 func isReleaseModuleVersion(value string) bool {
-	return value != "" && value != "(devel)" && !pseudoVersion.MatchString(value)
+	return value != "" && value != "(devel)" && !module.IsPseudoVersion(value)
 }

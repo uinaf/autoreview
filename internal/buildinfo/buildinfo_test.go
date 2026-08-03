@@ -37,13 +37,21 @@ func TestResolvePreservesReleaseLinkerOverrides(t *testing.T) {
 }
 
 func TestResolveRejectsLocalPseudoVersion(t *testing.T) {
-	gotVersion, gotCommit := resolve("dev", "unknown", &debug.BuildInfo{
-		Main: debug.Module{Version: "v0.0.0-20260802235352-863e8871fda5+dirty"},
-		Settings: []debug.BuildSetting{
-			{Key: "vcs.revision", Value: "863e8871fda57ca5"},
-		},
-	}, true)
-	if gotVersion != "dev" || gotCommit != "863e8871fda57ca5" {
-		t.Fatalf("resolve = %q, %q", gotVersion, gotCommit)
+	versions := []string{
+		"v0.0.0-20260802235352-863e8871fda5",
+		"v0.1.0-rc.1.0.20260802235352-863e8871fda5",
+	}
+	for _, version := range versions {
+		t.Run(version, func(t *testing.T) {
+			gotVersion, gotCommit := resolve("dev", "unknown", &debug.BuildInfo{
+				Main: debug.Module{Version: version},
+				Settings: []debug.BuildSetting{
+					{Key: "vcs.revision", Value: "863e8871fda57ca5"},
+				},
+			}, true)
+			if gotVersion != "dev" || gotCommit != "863e8871fda57ca5" {
+				t.Fatalf("resolve = %q, %q", gotVersion, gotCommit)
+			}
+		})
 	}
 }
