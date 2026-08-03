@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,6 +39,13 @@ func TestFakeProviderCLIsRejectInvalidReviewArguments(t *testing.T) {
 		}
 		valid := claudeArguments(claudeConfig(protocol.IsolationStrict, false, 5*time.Second), string(schema), "test-model")
 		assertInvalidContracts(t, newFakeClaude(t, fakeClaudeOptions{}).path, valid, []string{"--allowedTools", "WebSearch"})
+		t.Run("missing tools value", func(t *testing.T) {
+			toolsIndex := indexOf(valid, "--tools")
+			if toolsIndex < 0 {
+				t.Fatal("valid fixture arguments are missing --tools")
+			}
+			expectContractFailure(t, newFakeClaude(t, fakeClaudeOptions{}).path, append([]string(nil), valid[:toolsIndex+1]...), "review input")
+		})
 	})
 
 	t.Run("cursor", func(t *testing.T) {
@@ -63,7 +71,7 @@ func TestFakeProviderCLIsRejectInvalidProbeArguments(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			expectContractFailure(t, test.executable(t), test.arguments)
+			expectContractFailure(t, test.executable(t), test.arguments, "")
 		})
 	}
 }
@@ -83,14 +91,19 @@ func assertInvalidContracts(t *testing.T, executable string, valid, conflict []s
 	}
 	for _, mutation := range mutations {
 		t.Run(mutation.name, func(t *testing.T) {
-			expectContractFailure(t, executable, mutation.arguments)
+			input := "review input"
+			if mutation.name == "missing prompt" {
+				input = ""
+			}
+			expectContractFailure(t, executable, mutation.arguments, input)
 		})
 	}
 }
 
-func expectContractFailure(t *testing.T, executable string, arguments []string) {
+func expectContractFailure(t *testing.T, executable string, arguments []string, input string) {
 	t.Helper()
 	command := exec.Command(executable, arguments...)
+	command.Stdin = strings.NewReader(input)
 	output, err := command.CombinedOutput()
 	var exitError *exec.ExitError
 	if !errors.As(err, &exitError) || exitError.ExitCode() != 64 {
