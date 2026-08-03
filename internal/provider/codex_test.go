@@ -382,7 +382,7 @@ func newFakeCodex(t *testing.T, options fakeCodexOptions) fakeCodex {
 		"  [ \"$1\" = '--ask-for-approval' ] || return 1; shift\n" +
 		"  [ \"${1:-}\" = 'never' ] || return 1; shift\n" +
 		"  [ \"${1:-}\" = '--model' ] || return 1; shift\n" +
-		"  [ -n \"${1:-}\" ] || return 1; shift\n" +
+		"  [ -n \"${1:-}\" ] || return 1; case \"$1\" in -*) return 1 ;; esac; shift\n" +
 		"  [ \"${1:-}\" = '-c' ] || return 1; shift\n" +
 		"  case \"${1:-}\" in 'model_reasoning_effort=\"low\"'|'model_reasoning_effort=\"medium\"'|'model_reasoning_effort=\"high\"'|'model_reasoning_effort=\"xhigh\"'|'model_reasoning_effort=\"max\"') ;; *) return 1 ;; esac; shift\n" +
 		"  if [ \"${1:-}\" = '--search' ]; then shift; elif [ \"${1:-}\" = '-c' ] && [ \"${2:-}\" = 'web_search=\"disabled\"' ]; then shift 2; else return 1; fi\n" +

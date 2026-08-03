@@ -374,7 +374,7 @@ func newFakeCursor(t *testing.T, options fakeCursorOptions) fakeCursor {
 		"  [ -d \"${1:-}\" ] || return 1; shift\n" +
 		"  [ \"${1:-}\" = '--trust' ] || return 1; shift\n" +
 		"  [ \"${1:-}\" = '--model' ] || return 1; shift\n" +
-		"  [ -n \"${1:-}\" ] || return 1; shift\n" +
+		"  [ -n \"${1:-}\" ] || return 1; case \"$1\" in -*) return 1 ;; esac; shift\n" +
 		"  [ \"$#\" -eq 0 ]\n" +
 		"}\n" +
 		"if [ \"$#\" -eq 1 ] && [ \"$1\" = \"--version\" ]; then printf '%s\\n' '2026.07.23-e383d2b'; exit 0; fi\n" +

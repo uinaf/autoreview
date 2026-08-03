@@ -79,6 +79,7 @@ func assertInvalidContracts(t *testing.T, executable string, valid, conflict []s
 		{name: "duplicate flag", arguments: appendCopy(valid, "--model", "duplicate")},
 		{name: "conflicting flag", arguments: appendCopy(valid, conflict...)},
 		{name: "misplaced value", arguments: swapFirstTwo(valid)},
+		{name: "flag-like model value", arguments: replaceArgumentAfter(t, valid, "--model", "--other-flag")},
 	}
 	for _, mutation := range mutations {
 		t.Run(mutation.name, func(t *testing.T) {
@@ -105,5 +106,16 @@ func appendCopy(values []string, suffix ...string) []string {
 func swapFirstTwo(values []string) []string {
 	copyOfValues := append([]string(nil), values...)
 	copyOfValues[0], copyOfValues[1] = copyOfValues[1], copyOfValues[0]
+	return copyOfValues
+}
+
+func replaceArgumentAfter(t *testing.T, values []string, flag, replacement string) []string {
+	t.Helper()
+	copyOfValues := append([]string(nil), values...)
+	index := indexOf(copyOfValues, flag)
+	if index < 0 || index+1 >= len(copyOfValues) {
+		t.Fatalf("missing value after %q in valid fixture arguments", flag)
+	}
+	copyOfValues[index+1] = replacement
 	return copyOfValues
 }
