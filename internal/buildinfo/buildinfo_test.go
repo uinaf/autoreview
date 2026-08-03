@@ -12,6 +12,12 @@ func TestResolveWithoutBuildInfo(t *testing.T) {
 	}
 }
 
+func TestReleaseVersionIsSufficientWithoutRevision(t *testing.T) {
+	if got, want := format("v0.1.0", "unknown"), "autoreview v0.1.0"; got != want {
+		t.Fatalf("format() = %q, want %q", got, want)
+	}
+}
+
 func TestResolveUsesModuleVersionAndRevisionForGoInstall(t *testing.T) {
 	gotVersion, gotCommit := resolve("dev", "unknown", &debug.BuildInfo{
 		Main: debug.Module{Version: "v0.1.0"},

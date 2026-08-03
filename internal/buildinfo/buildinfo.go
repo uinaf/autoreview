@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 
 	"golang.org/x/mod/module"
+	"golang.org/x/mod/semver"
 )
 
 var (
@@ -15,6 +16,13 @@ var (
 func Version() string {
 	build, ok := debug.ReadBuildInfo()
 	resolvedVersion, resolvedCommit := resolve(version, commit, build, ok)
+	return format(resolvedVersion, resolvedCommit)
+}
+
+func format(resolvedVersion, resolvedCommit string) string {
+	if resolvedCommit == "unknown" && isReleaseModuleVersion(resolvedVersion) {
+		return fmt.Sprintf("autoreview %s", resolvedVersion)
+	}
 	return fmt.Sprintf("autoreview %s (%s)", resolvedVersion, resolvedCommit)
 }
 
@@ -37,5 +45,5 @@ func resolve(linkedVersion, linkedCommit string, build *debug.BuildInfo, ok bool
 }
 
 func isReleaseModuleVersion(value string) bool {
-	return value != "" && value != "(devel)" && !module.IsPseudoVersion(value)
+	return semver.IsValid(value) && !module.IsPseudoVersion(value)
 }
