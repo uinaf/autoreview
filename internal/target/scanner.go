@@ -59,6 +59,7 @@ func (scanner *truffleHogScanner) Scan(ctx context.Context, payload []byte) (ret
 		return fmt.Errorf("write secret-scan input: %w", err)
 	}
 
+	//nolint:noctx // processgroup.Run owns cancellation so it can kill the group before reaping the leader.
 	command := exec.Command(scanner.path,
 		"filesystem",
 		"--no-update",

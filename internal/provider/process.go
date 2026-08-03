@@ -65,6 +65,7 @@ func runProcess(ctx context.Context, spec processSpec) (processResult, error) {
 	}
 	runContext, cancel := context.WithTimeout(ctx, spec.Timeout)
 	defer cancel()
+	//nolint:noctx // processgroup.Run owns cancellation so it can kill the group before reaping the leader.
 	command := exec.Command(spec.Path, spec.Arguments...)
 	command.Dir = spec.Directory
 	command.Env = append(make([]string, 0, len(spec.Environment)), spec.Environment...)

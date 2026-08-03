@@ -34,7 +34,7 @@ func Run(ctx context.Context, command *exec.Cmd) Result {
 	// its process group is terminated.
 	watchErr := waitForExit(ctx, command.Process.Pid)
 	cleanupErr := terminate(command.Process.Pid)
-	if watchErr == nil && ignoreCleanupErrorAfterExit(cleanupErr) {
+	if watchErr == nil && ignoreCleanupErrorAfterExit(command.Process.Pid, cleanupErr) {
 		cleanupErr = nil
 	}
 	if watchErr != nil {
@@ -43,6 +43,9 @@ func Run(ctx context.Context, command *exec.Cmd) Result {
 		}
 	}
 	waitErr := command.Wait()
+	if errors.Is(waitErr, exec.ErrWaitDelay) {
+		waitErr = fmt.Errorf("wait for process-group I/O; output may be incomplete: %w", waitErr)
+	}
 	if watchErr == nil {
 		watchErr = ctx.Err()
 	}

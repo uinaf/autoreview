@@ -49,7 +49,18 @@ func waitForExit(ctx context.Context, pid int) error {
 	}
 }
 
-func ignoreCleanupErrorAfterExit(err error) bool {
-	// macOS reports EPERM when the group contains only its zombie leader.
-	return errors.Is(err, unix.EPERM)
+func ignoreCleanupErrorAfterExit(leaderPID int, err error) bool {
+	if !errors.Is(err, unix.EPERM) {
+		return false
+	}
+	processes, queryErr := unix.SysctlKinfoProcSlice("kern.proc.pgrp", leaderPID)
+	return queryErr == nil && containsOnlyZombieLeader(processes, leaderPID)
+}
+
+func containsOnlyZombieLeader(processes []unix.KinfoProc, leaderPID int) bool {
+	// Darwin's SZOMB value is 5 in sys/proc.h but is not exported by x/sys.
+	const zombieState = 5
+	return len(processes) == 1 &&
+		int(processes[0].Proc.P_pid) == leaderPID &&
+		processes[0].Proc.P_stat == zombieState
 }

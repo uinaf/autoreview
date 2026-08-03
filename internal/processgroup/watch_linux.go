@@ -33,6 +33,6 @@ func waitForExit(ctx context.Context, pid int) error {
 	}
 }
 
-func ignoreCleanupErrorAfterExit(_ error) bool {
+func ignoreCleanupErrorAfterExit(_ int, _ error) bool {
 	return false
 }
