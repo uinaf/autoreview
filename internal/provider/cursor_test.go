@@ -41,12 +41,12 @@ func TestCursorReviewStrictUsesAPIKeyWithoutStatusAndDenyConfig(t *testing.T) {
 		t.Fatalf("result = %+v", result)
 	}
 	prompt := readTestFile(t, fake.prompt)
-	protocol := reviewpolicy.CursorReviewProtocol()
+	reviewProtocol := reviewpolicy.CursorReviewProtocol()
 	schemaBoundary := "BEGIN AUTOREVIEW-TRUSTED-REVIEW-SCHEMA-V1\n" + string(contractschema.ReviewV1()) + "\nEND AUTOREVIEW-TRUSTED-REVIEW-SCHEMA-V1\n"
-	if prompt != "frozen review bundle"+protocol ||
-		!strings.HasPrefix(protocol, "\nAUTOREVIEW-TRUSTED-REVIEW-PROTOCOL-V1\n") ||
-		!strings.Contains(protocol, schemaBoundary) ||
-		!strings.HasSuffix(protocol, "Return only the review JSON object now.\n") {
+	if prompt != "frozen review bundle"+reviewProtocol ||
+		!strings.HasPrefix(reviewProtocol, "\nAUTOREVIEW-TRUSTED-REVIEW-PROTOCOL-V1\n") ||
+		!strings.Contains(reviewProtocol, schemaBoundary) ||
+		!strings.HasSuffix(reviewProtocol, "Return only the review JSON object now.\n") {
 		t.Fatalf("provider stdin omitted trusted review protocol: %q", prompt)
 	}
 	arguments := strings.Split(strings.TrimSpace(readTestFile(t, fake.arguments)), "\n")
@@ -136,7 +136,7 @@ func TestCursorReviewRejectsCombinedPromptBeforeDiscovery(t *testing.T) {
 	reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: "missing-cursor-agent"})
 	_, err := reviewer.Review(context.Background(), Request{Prompt: prompt, Config: effective})
 	failure := assertProviderError(t, err, protocol.FailureConfig)
-	if !strings.Contains(failure.Message, "provider prompt exceeds") {
+	if !strings.Contains(failure.Message, "Cursor combined review input exceeds") {
 		t.Fatalf("failure = %q", failure.Message)
 	}
 }

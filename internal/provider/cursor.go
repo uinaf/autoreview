@@ -69,7 +69,7 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 	maximumPrompt := request.Config.MaxBytes.Value + providerPromptAllowance
 	protocolBytes := int64(len(reviewpolicy.CursorReviewProtocol()))
 	if maximumPrompt < request.Config.MaxBytes.Value || protocolBytes > maximumPrompt || int64(len(request.Prompt)) > maximumPrompt-protocolBytes {
-		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("provider prompt exceeds %d bytes", maximumPrompt), nil, nil)
+		return Result{}, newFailure(protocol.FailureConfig, fmt.Sprintf("Cursor combined review input exceeds %d bytes (bundle plus trusted protocol)", maximumPrompt), nil, nil)
 	}
 	input := reviewpolicy.CursorReviewInput(request.Prompt)
 	reviewContext, cancelReview := context.WithTimeout(ctx, time.Duration(request.Config.Timeout.Value))
