@@ -7,11 +7,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/uinaf/autoreview/internal/trustedexec"
 )
 
 const diagnosticLimit = 8 << 10
@@ -46,17 +47,10 @@ func (sandbox *gitSandbox) Close() error {
 	return os.RemoveAll(sandbox.directory)
 }
 
-func newGitClient(path string) (*gitClient, error) {
-	if path == "" {
-		var err error
-		path, err = exec.LookPath("git")
-		if err != nil {
-			return nil, fmt.Errorf("find git: %w", err)
-		}
-	}
-	absolute, err := filepath.Abs(path)
+func newGitClient(path, repository string) (*gitClient, error) {
+	absolute, err := trustedexec.Resolve("git", path, repository, os.Environ())
 	if err != nil {
-		return nil, fmt.Errorf("resolve git path: %w", err)
+		return nil, fmt.Errorf("find git: %w", err)
 	}
 	git := &gitClient{path: absolute}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -178,24 +172,7 @@ func validObjectID(value string) bool {
 }
 
 func hardenedEnvironment() []string {
-	environment := make([]string, 0, len(os.Environ())+7)
-	for _, entry := range os.Environ() {
-		name, _, _ := strings.Cut(entry, "=")
-		upper := strings.ToUpper(name)
-		if strings.HasPrefix(upper, "GIT_") || upper == "LANG" || strings.HasPrefix(upper, "LC_") || strings.HasPrefix(upper, "DYLD_") || strings.HasPrefix(upper, "LD_") || upper == "TSAN_OPTIONS" {
-			continue
-		}
-		environment = append(environment, entry)
-	}
-	return append(environment,
-		"GIT_CONFIG_GLOBAL=/dev/null",
-		"GIT_CONFIG_SYSTEM=/dev/null",
-		"GIT_ATTR_NOSYSTEM=1",
-		"GIT_OPTIONAL_LOCKS=0",
-		"GIT_TERMINAL_PROMPT=0",
-		"LANG=C",
-		"LC_ALL=C",
-	)
+	return trustedexec.GitEnvironment()
 }
 
 type outputLimitError struct {

@@ -540,7 +540,10 @@ func TestGitSandboxIgnoresRepositoryInfoAttributesAndFilterConfig(t *testing.T) 
 	writeFile(t, repository, ".git/info/attributes", "*.txt filter=evil\n")
 	gitCommand(t, repository, "config", "filter.evil.clean", "touch "+marker)
 	writeFile(t, repository, "file.txt", "changed\n")
-	collector := newCollector(t, &recordingScanner{})
+	collector, err := New(Options{Repository: repository, Scanner: &recordingScanner{}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	sandbox, err := collector.newGitSandbox(context.Background(), repository)
 	if err != nil {
 		t.Fatal(err)
@@ -821,10 +824,11 @@ func TestHardenedEnvironmentDropsDynamicLoaderVariables(t *testing.T) {
 	t.Setenv("LD_AUDIT", "/tmp/audit.so")
 	t.Setenv("LD_LIBRARY_PATH", "/tmp/lib")
 	t.Setenv("DYLD_FRAMEWORK_PATH", "/tmp/frameworks")
+	t.Setenv("AUTOREVIEW_CREDENTIAL_SENTINEL", "must-not-cross-process-boundary")
 
 	for _, entry := range hardenedEnvironment() {
 		name, _, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(name, "LD_") || strings.HasPrefix(name, "DYLD_") {
+		if strings.HasPrefix(name, "LD_") || strings.HasPrefix(name, "DYLD_") || name == "AUTOREVIEW_CREDENTIAL_SENTINEL" {
 			t.Errorf("hardenedEnvironment retained %q", name)
 		}
 	}
@@ -833,7 +837,7 @@ func TestHardenedEnvironmentDropsDynamicLoaderVariables(t *testing.T) {
 func TestGitClientRejectsEmptyCommand(t *testing.T) {
 	t.Parallel()
 
-	client, err := newGitClient("")
+	client, err := newGitClient("", committedRepository(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -862,7 +866,7 @@ func TestScannerUsesSeparateHomeAndPreservesExitError(t *testing.T) {
 	if err := os.Chmod(script, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	scanner, err := newTruffleHogScanner(script)
+	scanner, err := newTruffleHogScanner(script, repositoryBoundaryFixture(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -870,6 +874,34 @@ func TestScannerUsesSeparateHomeAndPreservesExitError(t *testing.T) {
 	var exitError *exec.ExitError
 	if !errors.As(err, &exitError) || exitError.ExitCode() != 7 {
 		t.Fatalf("Scan() error = %v, want wrapped exit code 7", err)
+	}
+}
+
+func TestCollectorNeverExecutesRepositoryLocalTruffleHog(t *testing.T) {
+	repository := committedRepository(t)
+	marker := filepath.Join(t.TempDir(), "executed")
+	repositoryBin := filepath.Join(repository, "bin")
+	writeFile(t, repositoryBin, "trufflehog", "#!/bin/sh\nprintf executed > "+quoteShellTest(marker)+"\nexit 99\n")
+	if err := os.Chmod(filepath.Join(repositoryBin, "trufflehog"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	externalBin := t.TempDir()
+	writeFile(t, externalBin, "trufflehog", "#!/bin/sh\nexit 0\n")
+	if err := os.Chmod(filepath.Join(externalBin, "trufflehog"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", repositoryBin+string(os.PathListSeparator)+externalBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	writeFile(t, repository, "file.txt", "changed\n")
+
+	collector, err := New(Options{Repository: repository})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := collector.Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("repository-local trufflehog was executed: %v", err)
 	}
 }
 
@@ -1065,6 +1097,15 @@ func newCollector(t *testing.T, scanner Scanner) *Collector {
 		t.Fatal(err)
 	}
 	return collector
+}
+
+func repositoryBoundaryFixture(t *testing.T) string {
+	t.Helper()
+	repository := t.TempDir()
+	if err := os.Mkdir(filepath.Join(repository, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return repository
 }
 
 type ScannerFunc func(context.Context, []byte) error

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -152,6 +153,68 @@ func TestEnvironmentSelectedXDGStillSuppliesNonCapabilityValues(t *testing.T) {
 	}
 	if effective.Engine.Source != SourceXDG || effective.Model.Value != "xdg-model" || effective.Model.Source != SourceXDG {
 		t.Fatalf("effective config = %+v", effective)
+	}
+}
+
+func TestConfigGitEnvironmentDoesNotForwardCredentials(t *testing.T) {
+	t.Setenv("AUTOREVIEW_CREDENTIAL_SENTINEL", "must-not-cross-process-boundary")
+	t.Setenv("SSH_AUTH_SOCK", "/tmp/agent.sock")
+
+	for _, entry := range configGitEnvironment() {
+		name, _, _ := strings.Cut(entry, "=")
+		if name == "AUTOREVIEW_CREDENTIAL_SENTINEL" || name == "SSH_AUTH_SOCK" {
+			t.Fatalf("configGitEnvironment retained %q", name)
+		}
+	}
+}
+
+func TestLoadNeverExecutesRepositoryLocalGit(t *testing.T) {
+	repository := configRepository(t)
+	writeConfig(t, filepath.Join(repository, ".autoreview.yaml"), "engine: codex\n")
+	marker := filepath.Join(t.TempDir(), "executed")
+	bin := filepath.Join(repository, "bin")
+	writeConfig(t, filepath.Join(bin, "git"), "#!/bin/sh\nprintf executed > "+marker+"\nexit 99\n")
+	if err := os.Chmod(filepath.Join(bin, "git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if _, err := loadWithoutUserConfig(t, repository, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("repository-local git was executed: %v", err)
+	}
+}
+
+func TestRepositoryRootDoesNotForwardCredentialEnvironment(t *testing.T) {
+	repository := configRepository(t)
+	writeConfig(t, filepath.Join(repository, ".autoreview.yaml"), "engine: codex\n")
+	realGit, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := filepath.Join(t.TempDir(), "environment")
+	wrapper := filepath.Join(t.TempDir(), "git")
+	script := "#!/bin/sh\n/usr/bin/env > " + strconv.Quote(log) + "\nexec " + strconv.Quote(realGit) + " \"$@\"\n"
+	if err := os.WriteFile(wrapper, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AUTOREVIEW_CREDENTIAL_SENTINEL", "must-not-cross-process-boundary")
+	if _, err := Load(context.Background(), Options{
+		Repository: repository,
+		GitPath:    wrapper,
+		LookupEnv:  envLookup(map[string]string{"XDG_CONFIG_HOME": t.TempDir()}),
+		HomeDir:    func() (string, error) { return t.TempDir(), nil },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(content), "AUTOREVIEW_CREDENTIAL_SENTINEL") {
+		t.Fatalf("git received credential sentinel: %s", content)
 	}
 }
 

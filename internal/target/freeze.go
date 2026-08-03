@@ -27,8 +27,10 @@ const (
 )
 
 type Collector struct {
-	git     *gitClient
-	scanner Scanner
+	git            *gitClient
+	scanner        Scanner
+	gitPath        string
+	truffleHogPath string
 }
 
 type collected struct {
@@ -47,21 +49,21 @@ type targetPlan struct {
 }
 
 func New(options Options) (*Collector, error) {
-	git, err := newGitClient(options.GitPath)
-	if err != nil {
-		return nil, err
+	collector := &Collector{scanner: options.Scanner, gitPath: options.GitPath, truffleHogPath: options.TruffleHogPath}
+	if options.Repository == "" {
+		return collector, nil
 	}
-	scanner := options.Scanner
-	if scanner == nil {
-		scanner, err = newTruffleHogScanner(options.TruffleHogPath)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &Collector{git: git, scanner: scanner}, nil
+	return collector.forRepository(options.Repository)
 }
 
 func (collector *Collector) Freeze(ctx context.Context, repository string, request Request) (*Bundle, error) {
+	if collector.git == nil {
+		prepared, err := collector.forRepository(repository)
+		if err != nil {
+			return nil, err
+		}
+		return prepared.Freeze(ctx, repository, request)
+	}
 	request.ContextFiles = append([]string(nil), request.ContextFiles...)
 	if err := validateRequest(&request); err != nil {
 		return nil, err
@@ -95,6 +97,21 @@ func (collector *Collector) Freeze(ctx context.Context, repository string, reque
 		payload:      append([]byte(nil), first.payload...),
 		contributors: append([]Contributor(nil), first.contributors...),
 	}, nil
+}
+
+func (collector *Collector) forRepository(repository string) (*Collector, error) {
+	git, err := newGitClient(collector.gitPath, repository)
+	if err != nil {
+		return nil, err
+	}
+	scanner := collector.scanner
+	if scanner == nil {
+		scanner, err = newTruffleHogScanner(collector.truffleHogPath, repository)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &Collector{git: git, scanner: scanner}, nil
 }
 
 func validateRequest(request *Request) error {

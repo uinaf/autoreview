@@ -11,23 +11,17 @@ import (
 	"strings"
 
 	"github.com/uinaf/autoreview/internal/processgroup"
+	"github.com/uinaf/autoreview/internal/trustedexec"
 )
 
 type truffleHogScanner struct {
 	path string
 }
 
-func newTruffleHogScanner(path string) (*truffleHogScanner, error) {
-	if path == "" {
-		var err error
-		path, err = exec.LookPath("trufflehog")
-		if err != nil {
-			return nil, fmt.Errorf("find trufflehog: %w", err)
-		}
-	}
-	absolute, err := filepath.Abs(path)
+func newTruffleHogScanner(path, repository string) (*truffleHogScanner, error) {
+	absolute, err := trustedexec.Resolve("trufflehog", path, repository, os.Environ())
 	if err != nil {
-		return nil, fmt.Errorf("resolve trufflehog path: %w", err)
+		return nil, fmt.Errorf("find trufflehog: %w", err)
 	}
 	return &truffleHogScanner{path: absolute}, nil
 }

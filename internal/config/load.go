@@ -16,6 +16,7 @@ import (
 
 	"github.com/uinaf/autoreview/internal/protocol"
 	"github.com/uinaf/autoreview/internal/target"
+	"github.com/uinaf/autoreview/internal/trustedexec"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -390,12 +391,9 @@ func validateRaw(raw rawConfig, source Source, allowCapabilities bool) error {
 }
 
 func repositoryRoot(ctx context.Context, repository, gitPath string) (string, error) {
-	if gitPath == "" {
-		var err error
-		gitPath, err = exec.LookPath("git")
-		if err != nil {
-			return "", fmt.Errorf("find git: %w", err)
-		}
+	gitPath, err := trustedexec.Resolve("git", gitPath, repository, os.Environ())
+	if err != nil {
+		return "", fmt.Errorf("find git: %w", err)
 	}
 	absolute, err := filepath.Abs(repository)
 	if err != nil {
@@ -431,14 +429,5 @@ func repositoryRoot(ctx context.Context, repository, gitPath string) (string, er
 }
 
 func configGitEnvironment() []string {
-	environment := make([]string, 0, len(os.Environ())+6)
-	for _, entry := range os.Environ() {
-		name, _, _ := strings.Cut(entry, "=")
-		upper := strings.ToUpper(name)
-		if strings.HasPrefix(upper, "GIT_") || upper == "LANG" || strings.HasPrefix(upper, "LC_") || strings.HasPrefix(upper, "LD_") || strings.HasPrefix(upper, "DYLD_") {
-			continue
-		}
-		environment = append(environment, entry)
-	}
-	return append(environment, "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_TERMINAL_PROMPT=0", "LANG=C", "LC_ALL=C")
+	return trustedexec.GitEnvironment()
 }

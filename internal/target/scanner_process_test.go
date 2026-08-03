@@ -20,7 +20,7 @@ func TestTruffleHogScannerCancellationKillsDescendants(t *testing.T) {
 	if err := os.Chmod(script, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	scanner, err := newTruffleHogScanner(script)
+	scanner, err := newTruffleHogScanner(script, repositoryBoundaryFixture(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestTruffleHogScannerCleansDescendantsAfterLeaderExit(t *testing.T) {
 			if err := os.Chmod(script, 0o700); err != nil {
 				t.Fatal(err)
 			}
-			scanner, err := newTruffleHogScanner(script)
+			scanner, err := newTruffleHogScanner(script, repositoryBoundaryFixture(t))
 			if err != nil {
 				t.Fatal(err)
 			}

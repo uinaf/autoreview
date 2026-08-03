@@ -66,7 +66,7 @@ func runReview(ctx context.Context, arguments []string, stdout, stderr io.Writer
 
 	newCollector := dependencies.newCollector
 	if newCollector == nil {
-		newCollector = func() (*target.Collector, error) { return target.New(target.Options{}) }
+		newCollector = func() (*target.Collector, error) { return target.New(target.Options{Repository: *repository}) }
 	}
 	collector, err := newCollector()
 	if err != nil {

@@ -30,6 +30,7 @@ type Scanner interface {
 }
 
 type Options struct {
+	Repository     string
 	GitPath        string
 	TruffleHogPath string
 	Scanner        Scanner
