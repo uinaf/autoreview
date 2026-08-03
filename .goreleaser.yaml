@@ -12,7 +12,7 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/uinaf/autoreview/internal/buildinfo.version={{ .Tag }}
+      - -X github.com/uinaf/autoreview/internal/buildinfo.version={{ if .IsSnapshot }}v{{ .Version }}{{ else }}{{ .Tag }}{{ end }}
       - -X github.com/uinaf/autoreview/internal/buildinfo.commit={{ .FullCommit }}
     goos:
       - darwin

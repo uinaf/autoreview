@@ -131,7 +131,7 @@ case "$(uname -s)-$(uname -m)" in
 esac
 native_binary="$(find dist -type f -path "*${native_target}*/autoreview" -print -quit)"
 test -n "$native_binary"
-"$native_binary" --version | grep -E '^autoreview v[0-9]+\.[0-9]+\.[0-9]+'
+"$native_binary" --version | grep -E '^autoreview v[0-9]+\.[0-9]+\.[0-9]+-snapshot-[0-9a-f]+ \([0-9a-f]{40}\)$'
 '''
 
 [tasks."skill:review"]
