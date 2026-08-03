@@ -376,13 +376,53 @@ func newFakeCodex(t *testing.T, options fakeCodexOptions) fakeCodex {
 	}
 	script := "#!/bin/sh\n" +
 		"set -eu\n" +
+		"fail_contract() { printf '%s\\n' 'unexpected Codex CLI arguments' >&2; exit 64; }\n" +
+		"validate_review() {\n" +
+		"  [ \"$#\" -ge 1 ] || return 1\n" +
+		"  [ \"$1\" = '--ask-for-approval' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = 'never' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--model' ] || return 1; shift\n" +
+		"  [ -n \"${1:-}\" ] || return 1; case \"$1\" in -*) return 1 ;; esac; shift\n" +
+		"  [ \"${1:-}\" = '-c' ] || return 1; shift\n" +
+		"  case \"${1:-}\" in 'model_reasoning_effort=\"low\"'|'model_reasoning_effort=\"medium\"'|'model_reasoning_effort=\"high\"'|'model_reasoning_effort=\"xhigh\"'|'model_reasoning_effort=\"max\"') ;; *) return 1 ;; esac; shift\n" +
+		"  if [ \"${1:-}\" = '--search' ]; then shift; elif [ \"${1:-}\" = '-c' ] && [ \"${2:-}\" = 'web_search=\"disabled\"' ]; then shift 2; else return 1; fi\n" +
+		"  strict=0\n" +
+		"  if [ \"${1:-}\" = '--strict-config' ]; then\n" +
+		"    strict=1; shift\n" +
+		"    for setting in 'project_doc_max_bytes=0' 'features.shell_snapshot=false' 'features.hooks=false' 'features.plugins=false' 'features.multi_agent=false' 'skills.include_instructions=false' 'skills.config=[]' 'shell_environment_policy.inherit=\"core\"' 'shell_environment_policy.ignore_default_excludes=false' 'shell_environment_policy.set={GIT_CONFIG_GLOBAL=\"/dev/null\",GIT_CONFIG_SYSTEM=\"/dev/null\",GIT_TERMINAL_PROMPT=\"0\"}' 'shell_environment_policy.experimental_use_profile=false' 'allow_login_shell=false' 'default_permissions=\"autoreview\"' 'permissions.autoreview.filesystem={\":minimal\"=\"read\",\":workspace_roots\"=\"read\"}'; do\n" +
+		"      [ \"${1:-}\" = '-c' ] || return 1; shift\n" +
+		"      [ \"${1:-}\" = \"$setting\" ] || return 1; shift\n" +
+		"    done\n" +
+		"  fi\n" +
+		"  [ \"${1:-}\" = 'exec' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--json' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--color' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = 'never' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--ephemeral' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--skip-git-repo-check' ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--cd' ] || return 1; shift\n" +
+		"  [ -d \"${1:-}\" ] || return 1; shift\n" +
+		"  if [ \"$strict\" -eq 1 ]; then\n" +
+		"    [ \"${1:-}\" = '--sandbox' ] || return 1; shift\n" +
+		"    [ \"${1:-}\" = 'read-only' ] || return 1; shift\n" +
+		"    [ \"${1:-}\" = '--ignore-user-config' ] || return 1; shift\n" +
+		"    [ \"${1:-}\" = '--ignore-rules' ] || return 1; shift\n" +
+		"  fi\n" +
+		"  [ \"${1:-}\" = '--output-schema' ] || return 1; shift\n" +
+		"  [ -f \"${1:-}\" ] || return 1; shift\n" +
+		"  [ \"${1:-}\" = '--output-last-message' ] || return 1; shift\n" +
+		"  [ -f \"${1:-}\" ] || return 1; shift\n" +
+		"  [ \"$#\" -eq 1 ] && [ \"$1\" = '-' ]\n" +
+		"}\n" +
 		probeDelay +
-		"if [ \"${1:-}\" = \"--version\" ]; then printf '%s\\n' 'codex-cli 0.146.0'; exit 0; fi\n" +
-		"if [ \"${1:-}\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.topHelp) + "; exit 0; fi\n" +
-		"if [ \"${1:-}\" = \"exec\" ] && [ \"${2:-}\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.execHelp) + "; exit 0; fi\n" +
-		"if [ \"${1:-}\" = \"login\" ] && [ \"${2:-}\" = \"status\" ]; then " + authBlock + "; fi\n" +
+		"if [ \"$#\" -eq 1 ] && [ \"$1\" = \"--version\" ]; then printf '%s\\n' 'codex-cli 0.146.0'; exit 0; fi\n" +
+		"if [ \"$#\" -eq 1 ] && [ \"$1\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.topHelp) + "; exit 0; fi\n" +
+		"if [ \"$#\" -eq 2 ] && [ \"$1\" = \"exec\" ] && [ \"$2\" = \"--help\" ]; then printf '%s\\n' " + shellQuote(options.execHelp) + "; exit 0; fi\n" +
+		"if [ \"$#\" -eq 2 ] && [ \"$1\" = \"login\" ] && [ \"$2\" = \"status\" ]; then " + authBlock + "; fi\n" +
+		"validate_review \"$@\" || fail_contract\n" +
 		"printf '%s\\n' \"$@\" > " + shellQuote(fake.arguments) + "\n" +
 		"cat > " + shellQuote(fake.prompt) + "\n" +
+		"[ -s " + shellQuote(fake.prompt) + " ] || fail_contract\n" +
 		"env > " + shellQuote(fake.environment) + "\n" +
 		"pwd > " + shellQuote(fake.directory) + "\n" +
 		reviewFailure +
