@@ -392,6 +392,7 @@ func validateRaw(raw rawConfig, source Source, allowCapabilities bool) error {
 
 func repositoryRoot(ctx context.Context, repository, gitPath string) (string, error) {
 	gitPath, err := trustedexec.Resolve(
+		ctx,
 		"git",
 		gitPath,
 		repository,

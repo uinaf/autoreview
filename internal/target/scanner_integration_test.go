@@ -18,7 +18,7 @@ func TestTruffleHogScannerSmoke(t *testing.T) {
 	if os.Getenv("AUTOREVIEW_REAL_TRUFFLEHOG") != "1" {
 		t.Skip("set AUTOREVIEW_REAL_TRUFFLEHOG=1 to exercise the installed scanner")
 	}
-	scanner, err := newTruffleHogScanner("", repositoryBoundaryFixture(t))
+	scanner, err := newTruffleHogScanner(t.Context(), "", repositoryBoundaryFixture(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestTruffleHogScannerDetectsCredential(t *testing.T) {
 	if os.Getenv("AUTOREVIEW_REAL_TRUFFLEHOG") != "1" {
 		t.Skip("set AUTOREVIEW_REAL_TRUFFLEHOG=1 to exercise the installed scanner")
 	}
-	scanner, err := newTruffleHogScanner("", repositoryBoundaryFixture(t))
+	scanner, err := newTruffleHogScanner(t.Context(), "", repositoryBoundaryFixture(t))
 	if err != nil {
 		t.Fatal(err)
 	}

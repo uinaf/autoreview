@@ -49,16 +49,20 @@ type targetPlan struct {
 }
 
 func New(options Options) (*Collector, error) {
+	return NewContext(context.Background(), options)
+}
+
+func NewContext(ctx context.Context, options Options) (*Collector, error) {
 	collector := &Collector{scanner: options.Scanner, gitPath: options.GitPath, truffleHogPath: options.TruffleHogPath}
 	if options.Repository == "" {
 		return collector, nil
 	}
-	return collector.forRepository(options.Repository)
+	return collector.forRepository(ctx, options.Repository)
 }
 
 func (collector *Collector) Freeze(ctx context.Context, repository string, request Request) (*Bundle, error) {
 	if collector.git == nil {
-		prepared, err := collector.forRepository(repository)
+		prepared, err := collector.forRepository(ctx, repository)
 		if err != nil {
 			return nil, err
 		}
@@ -99,14 +103,14 @@ func (collector *Collector) Freeze(ctx context.Context, repository string, reque
 	}, nil
 }
 
-func (collector *Collector) forRepository(repository string) (*Collector, error) {
-	git, err := newGitClient(collector.gitPath, repository)
+func (collector *Collector) forRepository(ctx context.Context, repository string) (*Collector, error) {
+	git, err := newGitClient(ctx, collector.gitPath, repository)
 	if err != nil {
 		return nil, err
 	}
 	scanner := collector.scanner
 	if scanner == nil {
-		scanner, err = newTruffleHogScanner(collector.truffleHogPath, repository)
+		scanner, err = newTruffleHogScanner(ctx, collector.truffleHogPath, repository)
 		if err != nil {
 			return nil, err
 		}

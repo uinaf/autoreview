@@ -1,6 +1,7 @@
 package trustedexec
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestResolveSkipsRepositoryExecutableAndUsesExternalInstall(t *testing.T) {
@@ -20,7 +22,7 @@ func TestResolveSkipsRepositoryExecutableAndUsesExternalInstall(t *testing.T) {
 	writeExecutable(t, filepath.Join(repositoryBin, "git"))
 	external := writeExecutable(t, filepath.Join(externalBin, "git"))
 
-	resolved, err := Resolve("git", "", repository, []string{"PATH=" + strings.Join([]string{repositoryBin, externalBin}, string(os.PathListSeparator))}, successfulCheck)
+	resolved, err := Resolve(t.Context(), "git", "", repository, []string{"PATH=" + strings.Join([]string{repositoryBin, externalBin}, string(os.PathListSeparator))}, successfulCheck)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +38,7 @@ func TestResolveUsesOutermostRepositoryBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := writeExecutable(t, filepath.Join(repository, "bin", "trufflehog"))
-	if _, err := Resolve("trufflehog", path, nested, nil, successfulCheck); err == nil {
+	if _, err := Resolve(t.Context(), "trufflehog", path, nested, nil, successfulCheck); err == nil {
 		t.Fatal("Resolve() accepted an executable in the outer reviewed repository")
 	}
 }
@@ -50,7 +52,7 @@ func TestResolveRejectsSymlinkAcrossRepositoryBoundary(t *testing.T) {
 	if err := os.Symlink(external, repositoryLink); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Resolve("tool", repositoryLink, repository, nil, successfulCheck); err == nil {
+	if _, err := Resolve(t.Context(), "tool", repositoryLink, repository, nil, successfulCheck); err == nil {
 		t.Fatal("Resolve() accepted a repository-local symlink")
 	}
 
@@ -59,7 +61,7 @@ func TestResolveRejectsSymlinkAcrossRepositoryBoundary(t *testing.T) {
 	if err := os.Symlink(repositoryTool, externalLink); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Resolve("tool", externalLink, repository, nil, successfulCheck); err == nil {
+	if _, err := Resolve(t.Context(), "tool", externalLink, repository, nil, successfulCheck); err == nil {
 		t.Fatal("Resolve() accepted a symlink targeting the reviewed repository")
 	}
 }
@@ -77,7 +79,7 @@ func TestResolveRejectsCaseAliasOnCaseInsensitiveFilesystem(t *testing.T) {
 	if _, err := os.Stat(alias); err != nil {
 		t.Skip("filesystem is case-sensitive")
 	}
-	if _, err := Resolve("git", alias, repository, nil, successfulCheck); err == nil {
+	if _, err := Resolve(t.Context(), "git", alias, repository, nil, successfulCheck); err == nil {
 		t.Fatalf("Resolve() accepted case alias %q for %q", alias, path)
 	}
 }
@@ -87,7 +89,7 @@ func TestResolveSkipsRelativePATHEntries(t *testing.T) {
 
 	repository := testRepository(t)
 	writeExecutable(t, filepath.Join(t.TempDir(), "git"))
-	if _, err := Resolve("git", "", repository, []string{"PATH=relative/bin"}, successfulCheck); err == nil {
+	if _, err := Resolve(t.Context(), "git", "", repository, []string{"PATH=relative/bin"}, successfulCheck); err == nil {
 		t.Fatal("Resolve() accepted a relative PATH entry")
 	}
 }
@@ -96,7 +98,7 @@ func TestResolveRequiresGitWorktreeBoundary(t *testing.T) {
 	t.Parallel()
 
 	external := writeExecutable(t, filepath.Join(t.TempDir(), "git"))
-	if _, err := Resolve("git", external, t.TempDir(), nil, successfulCheck); err == nil || !strings.Contains(err.Error(), "not inside a Git worktree") {
+	if _, err := Resolve(t.Context(), "git", external, t.TempDir(), nil, successfulCheck); err == nil || !strings.Contains(err.Error(), "not inside a Git worktree") {
 		t.Fatalf("Resolve() error = %v", err)
 	}
 }
@@ -119,7 +121,7 @@ func TestResolveSkipsShimThatFailsCapabilityProbe(t *testing.T) {
 		"PATH=" + strings.Join([]string{shimBin, healthyBin}, string(os.PathListSeparator)),
 		"HOME=" + t.TempDir(),
 	}
-	resolved, err := Resolve("trufflehog", "", repository, environment, Probe([]string{"filesystem"}, t.TempDir(), environment))
+	resolved, err := Resolve(t.Context(), "trufflehog", "", repository, environment, Probe([]string{"filesystem"}, t.TempDir(), environment))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +137,7 @@ func TestResolveStopsWhenProbeCleanupFails(t *testing.T) {
 	writeExecutable(t, filepath.Join(firstBin, "trufflehog"))
 	writeExecutable(t, filepath.Join(secondBin, "trufflehog"))
 	checks := 0
-	check := func(string) error {
+	check := func(context.Context, string) error {
 		checks++
 		if checks == 1 {
 			return &probeCleanupError{cause: errors.New("raw cleanup detail")}
@@ -144,7 +146,7 @@ func TestResolveStopsWhenProbeCleanupFails(t *testing.T) {
 	}
 
 	path := strings.Join([]string{firstBin, secondBin}, string(os.PathListSeparator))
-	_, err := Resolve("trufflehog", "", repository, []string{"PATH=" + path}, check)
+	_, err := Resolve(t.Context(), "trufflehog", "", repository, []string{"PATH=" + path}, check)
 	if err == nil || !strings.Contains(err.Error(), "capability probe cleanup failed") {
 		t.Fatalf("Resolve() error = %v", err)
 	}
@@ -165,7 +167,7 @@ func TestResolvePreservesUsableStandaloneSymlink(t *testing.T) {
 	}
 	environment := []string{"PATH=" + bin, "HOME=" + t.TempDir()}
 
-	resolved, err := Resolve("trufflehog", "", repository, environment, Probe([]string{"--version"}, t.TempDir(), environment))
+	resolved, err := Resolve(t.Context(), "trufflehog", "", repository, environment, Probe([]string{"--version"}, t.TempDir(), environment))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +184,7 @@ func TestResolveSkipsGitBelowMinimumVersion(t *testing.T) {
 	newGit := writeExecutableContent(t, filepath.Join(newBin, "git"), "#!/bin/sh\nprintf 'git version 2.41.0\\n'\n")
 	environment := []string{"PATH=" + strings.Join([]string{oldBin, newBin}, string(os.PathListSeparator))}
 
-	resolved, err := Resolve("git", "", repository, environment, GitProbe(t.TempDir()))
+	resolved, err := Resolve(t.Context(), "git", "", repository, environment, GitProbe(t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,9 +198,27 @@ func TestResolveReportsGitVersionRequirement(t *testing.T) {
 	bin := t.TempDir()
 	writeExecutableContent(t, filepath.Join(bin, "git"), "#!/bin/sh\nprintf 'git version 2.40.9\\n'\n")
 
-	_, err := Resolve("git", "", repository, []string{"PATH=" + bin}, GitProbe(t.TempDir()))
+	_, err := Resolve(t.Context(), "git", "", repository, []string{"PATH=" + bin}, GitProbe(t.TempDir()))
 	if err == nil || !strings.Contains(err.Error(), "git 2.41 or newer is required; found 2.40") {
 		t.Fatalf("Resolve() error = %v", err)
+	}
+}
+
+func TestResolveStopsOnCallerDeadline(t *testing.T) {
+	t.Parallel()
+
+	repository := testRepository(t)
+	hangingBin := t.TempDir()
+	healthyBin := t.TempDir()
+	writeExecutableContent(t, filepath.Join(hangingBin, "trufflehog"), "#!/bin/sh\n/bin/sleep 5\n")
+	writeExecutable(t, filepath.Join(healthyBin, "trufflehog"))
+	environment := []string{"PATH=" + strings.Join([]string{hangingBin, healthyBin}, string(os.PathListSeparator))}
+	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Millisecond)
+	defer cancel()
+
+	_, err := Resolve(ctx, "trufflehog", "", repository, environment, Probe([]string{"--version"}, t.TempDir(), environment))
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Resolve() error = %v, want caller deadline", err)
 	}
 }
 
@@ -220,7 +240,7 @@ func TestGitProbeConcurrentFastProcesses(t *testing.T) {
 		go func() {
 			defer wait.Done()
 			<-start
-			results <- check(realGit)
+			results <- check(t.Context(), realGit)
 		}()
 	}
 	close(start)
@@ -261,7 +281,7 @@ func TestResolveDoesNotExposeProbeOutput(t *testing.T) {
 	writeExecutableContent(t, filepath.Join(bin, "trufflehog"), "#!/bin/sh\nprintf 'raw dependency output' >&2\nexit 9\n")
 	environment := []string{"PATH=" + bin, "HOME=" + t.TempDir()}
 
-	_, err := Resolve("trufflehog", "", repository, environment, Probe([]string{"--version"}, t.TempDir(), environment))
+	_, err := Resolve(t.Context(), "trufflehog", "", repository, environment, Probe([]string{"--version"}, t.TempDir(), environment))
 	if err == nil || !strings.Contains(err.Error(), "not usable under the hardened environment") {
 		t.Fatalf("Resolve() error = %v", err)
 	}
@@ -315,7 +335,7 @@ func writeExecutableContent(t *testing.T, path, content string) string {
 	return resolved
 }
 
-func successfulCheck(string) error {
+func successfulCheck(context.Context, string) error {
 	return nil
 }
 

@@ -18,7 +18,7 @@ type truffleHogScanner struct {
 	path string
 }
 
-func newTruffleHogScanner(path, repository string) (scanner *truffleHogScanner, returnErr error) {
+func newTruffleHogScanner(ctx context.Context, path, repository string) (scanner *truffleHogScanner, returnErr error) {
 	root, err := os.MkdirTemp("", "autoreview-scan-probe-")
 	if err != nil {
 		return nil, fmt.Errorf("create trufflehog probe directory: %w", err)
@@ -37,6 +37,7 @@ func newTruffleHogScanner(path, repository string) (scanner *truffleHogScanner, 
 		}
 	}
 	absolute, err := trustedexec.Resolve(
+		ctx,
 		"trufflehog",
 		path,
 		repository,

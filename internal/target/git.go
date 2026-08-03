@@ -47,8 +47,9 @@ func (sandbox *gitSandbox) Close() error {
 	return os.RemoveAll(sandbox.directory)
 }
 
-func newGitClient(path, repository string) (*gitClient, error) {
+func newGitClient(ctx context.Context, path, repository string) (*gitClient, error) {
 	absolute, err := trustedexec.Resolve(
+		ctx,
 		"git",
 		path,
 		repository,

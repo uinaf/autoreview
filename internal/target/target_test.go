@@ -817,7 +817,7 @@ func TestHardenedEnvironmentDropsDynamicLoaderVariables(t *testing.T) {
 func TestGitClientRejectsEmptyCommand(t *testing.T) {
 	t.Parallel()
 
-	client, err := newGitClient("", committedRepository(t))
+	client, err := newGitClient(t.Context(), "", committedRepository(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -851,7 +851,7 @@ func TestGitClientSkipsUnusablePathShim(t *testing.T) {
 	}
 	t.Setenv("PATH", strings.Join([]string{shimBin, healthyBin}, string(os.PathListSeparator)))
 
-	client, err := newGitClient("", repository)
+	client, err := newGitClient(t.Context(), "", repository)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -880,7 +880,7 @@ func TestScannerUsesSeparateHomeAndPreservesExitError(t *testing.T) {
 	if err := os.Chmod(script, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	scanner, err := newTruffleHogScanner(script, repositoryBoundaryFixture(t))
+	scanner, err := newTruffleHogScanner(t.Context(), script, repositoryBoundaryFixture(t))
 	if err != nil {
 		t.Fatal(err)
 	}

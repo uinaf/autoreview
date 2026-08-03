@@ -17,15 +17,15 @@ import (
 )
 
 func Probe(arguments []string, directory string, environment []string) Check {
-	return func(path string) error {
-		return runProbe(path, arguments, directory, environment, io.Discard)
+	return func(ctx context.Context, path string) error {
+		return runProbe(ctx, path, arguments, directory, environment, io.Discard)
 	}
 }
 
 func GitProbe(directory string) Check {
-	return func(path string) error {
+	return func(ctx context.Context, path string) error {
 		output := &probeBuffer{limit: 4 << 10}
-		if err := runProbe(path, []string{"-C", directory, "--version"}, directory, GitEnvironment(), output); err != nil {
+		if err := runProbe(ctx, path, []string{"-C", directory, "--version"}, directory, GitEnvironment(), output); err != nil {
 			return err
 		}
 		if output.exceeded {
@@ -80,8 +80,8 @@ func isProbeCleanupError(err error) bool {
 	return errors.As(err, &cleanup)
 }
 
-func runProbe(path string, arguments []string, directory string, environment []string, stdout io.Writer) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func runProbe(parent context.Context, path string, arguments []string, directory string, environment []string, stdout io.Writer) error {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 
 	//nolint:noctx // processgroup.Run owns cancellation so it can kill the group before reaping the leader.

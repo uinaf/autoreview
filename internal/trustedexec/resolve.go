@@ -1,17 +1,21 @@
 package trustedexec
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-type Check func(path string) error
+type Check func(ctx context.Context, path string) error
 
-func Resolve(name, configuredPath, repository string, environment []string, check Check) (string, error) {
+func Resolve(ctx context.Context, name, configuredPath, repository string, environment []string, check Check) (string, error) {
 	if check == nil {
 		return "", fmt.Errorf("trusted %s executable capability check is required", name)
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
 	boundaries, err := repositoryBoundaries(repository)
 	if err != nil {
@@ -22,9 +26,12 @@ func Resolve(name, configuredPath, repository string, environment []string, chec
 		if err != nil {
 			return "", fmt.Errorf("trusted %s executable: %w", name, err)
 		}
-		if err := check(path); err != nil {
+		if err := check(ctx, path); err != nil {
 			if isProbeCleanupError(err) {
 				return "", fmt.Errorf("trusted %s executable capability probe cleanup failed", name)
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return "", ctxErr
 			}
 			if diagnostic, ok := probeDiagnostic(err); ok {
 				return "", fmt.Errorf("trusted %s executable is not usable under the hardened environment: %s", name, diagnostic)
@@ -49,9 +56,12 @@ func Resolve(name, configuredPath, repository string, environment []string, chec
 			continue
 		}
 		foundTrustedCandidate = true
-		if err := check(resolved); err != nil {
+		if err := check(ctx, resolved); err != nil {
 			if isProbeCleanupError(err) {
 				return "", fmt.Errorf("trusted %s executable capability probe cleanup failed", name)
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return "", ctxErr
 			}
 			if diagnostic, ok := probeDiagnostic(err); ok {
 				lastDiagnostic = diagnostic
