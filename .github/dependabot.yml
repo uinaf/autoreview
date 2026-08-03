@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 1
+    groups:
+      go-patch-minor:
+        update-types: ["patch", "minor"]
+      go-major:
+        update-types: ["major"]
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 1
+    groups:
+      actions-patch-minor:
+        update-types: ["patch", "minor"]
+      actions-major:
+        update-types: ["major"]
+    commit-message:
+      prefix: ci

@@ -17,14 +17,15 @@ Run the deterministic core checks before opening or updating a pull request:
 mise run verify
 ```
 
-Before a source tag, run the complete release gate and the pinned hosted skill
-review. The release gate requires the installed `trufflehog` executable,
-exercises its benign and detection paths, and checks the current Go
+Before release-related changes, run the complete release gate and release
+configuration checks. The release gate requires the installed `trufflehog`
+executable, exercises its benign and detection paths, and checks the current Go
 vulnerability database, so it also requires network access:
 
 ```bash
 mise run verify:release
-mise run skill:review
+mise run release:check
+mise run release:snapshot
 ```
 
 Freezing the current checkout is intentionally separate because it depends on
@@ -50,5 +51,14 @@ mise run skill:review
 - Treat AI-review findings as hypotheses: validate them, fix actionable
   defects, and close the corresponding threads.
 
-Release automation, signed binary distribution, and Homebrew publishing are
-tracked separately after the source and skill milestone.
+## Releases
+
+Successful pushes to protected `main` evaluate Conventional Commits after the
+macOS/Linux verification and snapshot-package jobs pass. `fix`, `perf`, and
+`refactor` publish patches; `feat` publishes a minor; breaking changes publish
+a major; and docs, test, chore, build, and CI changes do not publish.
+
+The release job creates no version-bump commit. It mints a short-lived
+`uinaf-release-bot` token inside the `release` Environment, creates the tag and
+GitHub Release, signs and attests the artifacts, and updates the Homebrew tap.
+See [Releases](docs/RELEASES.md) for the complete contract and recovery path.

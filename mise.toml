@@ -1,6 +1,9 @@
 [tools]
+actionlint = "1.7.12"
 go = "1.26.2"
+goreleaser = "2.17.1"
 rg = "15.2.0"
+trufflehog = "3.96.0"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.6.0"
 
 [env]
@@ -96,6 +99,37 @@ run = "go test ./cmd/autoreview -run '^TestSkill' -count=1"
 [tasks."verify:release"]
 description = "Run complete v0.1 source-release gates, including live vulnerability data"
 depends = ["verify", "test:integration", "vuln", "build:cross", "runtime:go-only", "skill:package"]
+
+[tasks."release:check"]
+description = "Validate release and GitHub Actions configuration"
+run = '''
+set -e
+actionlint
+goreleaser check
+'''
+
+[tasks."release:snapshot"]
+description = "Build and inspect unpublished release archives"
+depends = ["release:check"]
+run = '''
+set -e
+goreleaser release --snapshot --clean --skip=publish,sign
+test "$(find dist -maxdepth 1 -name 'autoreview_*.tar.gz' -type f | wc -l | tr -d ' ')" = "4"
+for archive in dist/autoreview_*.tar.gz; do
+  test "$(tar -tzf "$archive" | sort | tr '\n' ' ')" = "autoreview LICENSE README.md "
+done
+(cd dist && shasum -a 256 -c checksums.txt)
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64) native_target='darwin_arm64' ;;
+  Darwin-x86_64) native_target='darwin_amd64' ;;
+  Linux-aarch64) native_target='linux_arm64' ;;
+  Linux-x86_64) native_target='linux_amd64' ;;
+  *) printf '%s\n' "unsupported snapshot host" >&2; exit 1 ;;
+esac
+native_binary="$(find dist -type f -path "*${native_target}*/autoreview" -print -quit)"
+test -n "$native_binary"
+"$native_binary" --version | grep -E '^autoreview v[0-9]+\.[0-9]+\.[0-9]+'
+'''
 
 [tasks."skill:review"]
 description = "Review the skill at the pinned Tessl quality threshold"

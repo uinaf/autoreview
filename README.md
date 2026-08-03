@@ -9,11 +9,18 @@ result locally, and emits a stable terminal or JSON report.
 
 ## Install
 
-After the signed `v0.1.1` source tag is available and verified, install it with
-Go 1.26 or newer:
+Install the signed CLI from the Uinaf Homebrew tap:
 
 ```bash
-go install github.com/uinaf/autoreview/cmd/autoreview@v0.1.1
+brew install --cask uinaf/tap/autoreview
+autoreview --version
+```
+
+Linux users and consumers that prefer Go tooling can install the latest tagged
+CLI with Go 1.26 or newer:
+
+```bash
+go install github.com/uinaf/autoreview/cmd/autoreview@latest
 autoreview --version
 ```
 
@@ -21,14 +28,16 @@ Runtime dependencies are Git 2.41 or newer, the `trufflehog` executable, and
 the selected review harness available on `PATH`. Multiple supported harnesses
 may be installed; `--engine` selects exactly one for each run.
 
-After package `0.1.1` is published, install the standalone skill from Tessl
-into a Codex project:
+The CLI and Tessl skill have independent version tracks. Until the skill 2.0
+cutover is complete, install the proven standalone skill package explicitly:
 
 ```bash
 tessl install --agent codex uinaf/autoreview@0.1.1
 ```
 
 The skill invokes the installed CLI. It does not bundle a second runtime.
+See [Releases](docs/RELEASES.md) for archive, checksum, Sigstore signature, and
+GitHub provenance verification.
 
 ## Quick use
 
@@ -91,9 +100,14 @@ suspected vulnerabilities privately through the repository Security tab; see
 
 ## Project status
 
-`v0.1.1` is the source and Tessl package milestone for macOS and Linux on amd64
-and arm64. GitHub Checks integration, signed binary assets, automated
-publishing, and Homebrew distribution are deferred to [issue #11](https://github.com/uinaf/autoreview/issues/11).
+The CLI publishes signed macOS and Linux archives for amd64 and arm64 from
+verified `main` commits. Conventional Commits select the next CLI version, and
+the Uinaf Homebrew tap provides the prebuilt command. The Tessl package remains
+independently versioned and is tracked in [issue #38](https://github.com/uinaf/autoreview/issues/38).
+
+GitHub Checks integration and CI-hosted review reporting remain in
+[issue #11](https://github.com/uinaf/autoreview/issues/11); release automation
+does not change the local review contract.
 
 The [migration matrix](docs/MIGRATION.md) records the Python-to-Go decisions and
 their v0.1 evidence. This project succeeds the
