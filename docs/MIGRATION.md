@@ -135,8 +135,11 @@ on every row:
 | Public skill distribution | Published `uinaf/autoreview@0.1.0` registry install proof |
 | Source distribution | Post-merge signed tag and isolated Go install gates recorded on issue #10 |
 
-`mise run verify:release` composes the deterministic v0.1 checks with the live
-Go vulnerability database gate. The hosted Tessl review remains a separate
-authenticated gate. Real-provider outcomes, tag verification, and clean-room
-installation are release evidence reported on issue #10 rather than
-machine-local facts stored in this public document.
+`mise run verify:release` composes the deterministic v0.1 checks with installed
+TruffleHog integration and the live Go vulnerability database gate. The scanner
+gate fails when the executable is missing or incompatible; freezing the current
+checkout remains a separate smoke. Run `mise run test:current-checkout`
+explicitly to opt in. The hosted Tessl review remains a separate authenticated
+gate. Real-provider outcomes, tag verification, and clean-room installation are
+release evidence reported on issue #10 rather than machine-local facts stored
+in this public document.
