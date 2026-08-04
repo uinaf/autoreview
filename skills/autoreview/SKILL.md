@@ -37,7 +37,7 @@ run a panel or fall back. Read [providers.md](references/providers.md).
 Native isolation is the default and uses normal provider login from an empty
 bundle-only workspace. Select strict explicitly only when the task requires the
 hardened provider-state boundary and a supported API key is available. Keep web
-access off for Codex and Claude unless configured; the skill's explicit
+access off for Codex, Claude, and Grok unless configured; the skill's explicit
 `--engine cursor` selection implicitly enables an otherwise-unset value because
 Cursor cannot guarantee web-off. Repository, environment, or XDG engine selection
 does not grant web access. Honor any explicit `web_access: false`, which makes

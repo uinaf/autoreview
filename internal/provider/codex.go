@@ -397,7 +397,7 @@ func classifyProcessFailure(err error, result processResult) protocol.FailureCla
 			return protocol.FailureCancelled
 		}
 	}
-	detail := strings.ToLower(string(result.Stderr) + "\n" + string(result.Stdout))
+	detail := strings.ToLower(string(result.Stderr))
 	for _, marker := range []string{"not logged in", "unauthorized", "authentication", "login required", "401"} {
 		if strings.Contains(detail, marker) {
 			return protocol.FailureAuth
@@ -462,14 +462,4 @@ func newFailure(class protocol.FailureClass, message string, environment []strin
 
 func invalidProviderOutput(name, phase string, environment []string, attempt *protocol.Attempt) *Error {
 	return newFailure(protocol.FailureProtocol, fmt.Sprintf("%s returned an invalid %s; retry or inspect the provider CLI directly for private diagnostics", name, phase), environment, attempt)
-}
-
-func missingCapabilities(output string, required []string) []string {
-	missing := make([]string, 0)
-	for _, capability := range required {
-		if !strings.Contains(output, capability) {
-			missing = append(missing, capability)
-		}
-	}
-	return missing
 }

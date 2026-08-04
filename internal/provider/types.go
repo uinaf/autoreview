@@ -16,6 +16,7 @@ const (
 	DefaultCodexModel  = "gpt-5.6-sol"
 	DefaultClaudeModel = "claude-opus-5"
 	DefaultCursorModel = "cursor-grok-4.5-high-fast"
+	DefaultGrokModel   = "grok-4.5"
 )
 
 type Request struct {
@@ -114,6 +115,8 @@ func providerCredentialNames(name protocol.ProviderName) (string, []string) {
 		return "Claude", []string{"ANTHROPIC_API_KEY"}
 	case protocol.ProviderCursor:
 		return "Cursor", []string{"CURSOR_API_KEY"}
+	case protocol.ProviderGrok:
+		return "Grok", []string{"XAI_API_KEY"}
 	default:
 		return string(name), nil
 	}

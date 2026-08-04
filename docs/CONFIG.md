@@ -9,9 +9,9 @@ Autoreview loads one flat, typed configuration in descending precedence:
    `$HOME/.config/autoreview/config.yaml` when `XDG_CONFIG_HOME` is unset
 5. built-in operational defaults
 
-The engine has no default. Select exactly one of `codex`, `claude`, or `cursor`
-through a flag or configuration source. Autoreview never chooses an engine by
-examining `PATH`.
+The engine has no default. Select exactly one of `codex`, `claude`, `cursor`, or
+`grok` through a flag or configuration source. Autoreview never chooses an
+engine by examining `PATH`.
 
 ## File schema
 
@@ -52,7 +52,7 @@ configuration. Any source may select stricter `strict` isolation. A
 higher-precedence repository or environment source cannot weaken an already
 selected `strict` value back to `native`.
 
-Web access defaults to off for Codex and Claude. An explicit CLI
+Web access defaults to off for Codex, Claude, and Grok. An explicit CLI
 `--engine cursor` changes an otherwise unset default to on because Cursor Agent
 has no documented per-run web-disable control. Cursor selected by repository,
 environment, or XDG engine configuration does not receive that implicit grant;
@@ -70,8 +70,9 @@ state directories with empty temporary directories and preserves only required
 system variables, proxy and certificate settings, and supported provider API
 keys. `native` preserves the normal provider environment and user configuration.
 Strict authentication requires the provider's supported API-key environment
-variable; session-backed login belongs to native mode. Explicit CLI Cursor
-selection still grants otherwise-unset web access in strict mode; pass
+variable; session-backed login belongs to native mode. Grok strict mode uses
+`XAI_API_KEY`; native mode uses the normal `grok login` session. Explicit CLI
+Cursor selection still grants otherwise-unset web access in strict mode; pass
 `--web-access=false` to reject that capability and fail preflight instead.
 
 ## Effective configuration

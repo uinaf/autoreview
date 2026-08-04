@@ -139,6 +139,7 @@ func TestBinaryConfigCommandReportsNativeAndCursorWebDefaults(t *testing.T) {
 		{name: "implicit", arguments: []string{"--engine", "cursor"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, web: true, webSource: config.SourceFlag},
 		{name: "explicit false", arguments: []string{"--engine", "cursor", "--web-access=false"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, webSource: config.SourceFlag},
 		{name: "strict still implicit", arguments: []string{"--engine", "cursor", "--isolation", "strict"}, isolation: protocol.IsolationStrict, isolationSource: config.SourceFlag, web: true, webSource: config.SourceFlag},
+		{name: "Grok native web off", arguments: []string{"--engine", "grok"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, webSource: config.SourceDefault},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			effective := runBinaryConfig(t, binary, repository, test.arguments...)

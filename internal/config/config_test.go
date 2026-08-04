@@ -77,6 +77,7 @@ func TestLoadDefaultsToNativeAndEnablesCursorWebImplicitly(t *testing.T) {
 		{name: "Codex keeps web disabled", engine: protocol.ProviderCodex},
 		{name: "Claude keeps web disabled", engine: protocol.ProviderClaude},
 		{name: "Cursor enables web", engine: protocol.ProviderCursor, web: true},
+		{name: "Grok keeps web disabled", engine: protocol.ProviderGrok},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			repository := configRepository(t)
@@ -601,6 +602,7 @@ func TestPrepareStrictRuntimeSanitizesStateAndUsesEmptyWorkspace(t *testing.T) {
 		"CODEX_API_KEY=codex-secret",
 		"ANTHROPIC_API_KEY=claude-secret",
 		"CURSOR_API_KEY=cursor-secret",
+		"XAI_API_KEY=grok-secret",
 		"ALL_PROXY=socks5://proxy.example:1080",
 		"NODE_EXTRA_CA_CERTS=/etc/company-ca.pem",
 		"no_proxy=localhost,127.0.0.1",
@@ -630,7 +632,7 @@ func TestPrepareStrictRuntimeSanitizesStateAndUsesEmptyWorkspace(t *testing.T) {
 			t.Errorf("strict environment omitted %q: %s", expected, environment)
 		}
 	}
-	for _, forbidden := range []string{"HOME=/private/home", "CODEX_HOME=/private/codex", "ANTHROPIC_API_KEY", "CURSOR_API_KEY", "AWS_SECRET_ACCESS_KEY"} {
+	for _, forbidden := range []string{"HOME=/private/home", "CODEX_HOME=/private/codex", "ANTHROPIC_API_KEY", "CURSOR_API_KEY", "XAI_API_KEY", "AWS_SECRET_ACCESS_KEY"} {
 		if strings.Contains(environment, forbidden) {
 			t.Errorf("strict environment retained %q: %s", forbidden, environment)
 		}
@@ -640,6 +642,33 @@ func TestPrepareStrictRuntimeSanitizesStateAndUsesEmptyWorkspace(t *testing.T) {
 	}
 	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("runtime root still exists: %v", err)
+	}
+}
+
+func TestPrepareStrictRuntimePreservesOnlyGrokCredential(t *testing.T) {
+	t.Parallel()
+
+	effective := defaults()
+	effective.Engine.Value = protocol.ProviderGrok
+	effective.Isolation.Value = protocol.IsolationStrict
+	runtime, err := PrepareRuntime(effective, []string{
+		"PATH=/usr/bin",
+		"XAI_API_KEY=grok-secret",
+		"OPENAI_API_KEY=drop-openai",
+		"ANTHROPIC_API_KEY=drop-anthropic",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = runtime.Close() }()
+	environment := strings.Join(runtime.Environment(), "\n")
+	if !strings.Contains(environment, "XAI_API_KEY=grok-secret") || !strings.Contains(environment, "GROK_HOME=") {
+		t.Fatalf("strict Grok environment = %s", environment)
+	}
+	for _, forbidden := range []string{"OPENAI_API_KEY", "ANTHROPIC_API_KEY"} {
+		if strings.Contains(environment, forbidden) {
+			t.Errorf("strict Grok environment retained %q: %s", forbidden, environment)
+		}
 	}
 }
 

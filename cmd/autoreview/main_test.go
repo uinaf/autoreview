@@ -295,6 +295,7 @@ func TestConfigCommandReportsNativeAndCursorWebDefaults(t *testing.T) {
 		{name: "implicit", arguments: []string{"config", "--repository", repository, "--engine", "cursor", "--json"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, web: true, webSource: config.SourceFlag},
 		{name: "explicit false", arguments: []string{"config", "--repository", repository, "--engine", "cursor", "--web-access=false", "--json"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, webSource: config.SourceFlag},
 		{name: "strict still implicit", arguments: []string{"config", "--repository", repository, "--engine", "cursor", "--isolation", "strict", "--json"}, isolation: protocol.IsolationStrict, isolationSource: config.SourceFlag, web: true, webSource: config.SourceFlag},
+		{name: "Grok native web off", arguments: []string{"config", "--repository", repository, "--engine", "grok", "--json"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, webSource: config.SourceDefault},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var stdout bytes.Buffer
