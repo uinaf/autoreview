@@ -79,6 +79,9 @@ func (claude *Claude) Review(ctx context.Context, request Request) (result Resul
 	if err != nil {
 		return Result{}, newFailure(protocol.FailureCapability, err.Error(), claude.environment, nil)
 	}
+	if failure := strictCredentialFailure(request.Config, protocol.ProviderClaude, claude.environment); failure != nil {
+		return Result{}, failure
+	}
 	runtime, err := config.PrepareRuntime(request.Config, claude.environment)
 	if err != nil {
 		return Result{}, newFailure(protocol.FailureInternal, fmt.Sprintf("prepare provider runtime: %v", err), claude.environment, nil)
@@ -120,7 +123,7 @@ func (claude *Claude) Review(ctx context.Context, request Request) (result Resul
 		class := classifyProcessFailure(processErr, process)
 		attempt.Outcome = protocol.AttemptFailed
 		attempt.ErrorClass = &class
-		return Result{}, processFailure("Claude review", class, processErr, process, environment, &attempt)
+		return Result{}, processFailure("Claude review", class, processErr, process, environment, &attempt, strictCredentialRecovery(request.Config, protocol.ProviderClaude))
 	}
 	reviewData, err := decodeClaudeEnvelope(process.Stdout)
 	if err != nil {

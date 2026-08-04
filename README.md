@@ -75,9 +75,14 @@ no trustworthy review result.
 ## Configuration and providers
 
 Configuration resolves flags, environment variables, repository
-`.autoreview.yaml`, account XDG config, then operational defaults. Strict
-isolation and web-off are the defaults. Only an explicit flag or trusted
-account-home XDG file may enable native provider state or web access.
+`.autoreview.yaml`, account XDG config, then operational defaults. Native
+isolation preserves session-backed provider login while keeping the frozen
+bundle in an empty provider workspace, so it is the default. Web access remains
+off for Codex and Claude; an explicit CLI `--engine cursor` enables it
+implicitly because Cursor Agent has no documented per-run web-disable control.
+Repository, environment, or XDG engine selection cannot grant web access. Select
+`strict` explicitly when a provider API key and hardened provider state are
+required.
 
 - [Configuration and isolation](docs/CONFIG.md)
 - [Codex, Claude, and Cursor execution](docs/PROVIDERS.md)

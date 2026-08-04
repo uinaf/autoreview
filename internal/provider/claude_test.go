@@ -110,6 +110,32 @@ func TestClaudeReviewReportsAuthenticationFailure(t *testing.T) {
 	_ = assertProviderError(t, err, protocol.FailureAuth)
 }
 
+func TestClaudeReviewStrictExplainsCredentialRequirement(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeClaude(t, fakeClaudeOptions{})
+	reviewer := NewClaude(ClaudeOptions{Repository: t.TempDir(), Executable: fake.path, Environment: []string{"PATH=/usr/bin:/bin"}})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: claudeConfig(protocol.IsolationStrict, false, 5*time.Second)})
+	failure := assertProviderError(t, err, protocol.FailureAuth)
+	if !strings.Contains(failure.Message, "strict isolation requires ANTHROPIC_API_KEY") || !strings.Contains(failure.Message, "--isolation native") {
+		t.Fatalf("failure = %q", failure.Message)
+	}
+	if _, err := os.Stat(fake.arguments); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("provider was probed without a strict credential: %v", err)
+	}
+}
+
+func TestClaudeReviewStrictReportsMissingExecutableBeforeCredential(t *testing.T) {
+	t.Parallel()
+
+	reviewer := NewClaude(ClaudeOptions{Repository: t.TempDir(), Executable: "missing-claude", Environment: []string{"PATH=/usr/bin:/bin"}})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: claudeConfig(protocol.IsolationStrict, false, 5*time.Second)})
+	failure := assertProviderError(t, err, protocol.FailureCapability)
+	if !strings.Contains(failure.Message, "was not found") || strings.Contains(failure.Message, "API_KEY") {
+		t.Fatalf("failure = %q", failure.Message)
+	}
+}
+
 func TestClaudeReviewUsesExplicitDefaultModel(t *testing.T) {
 	t.Parallel()
 

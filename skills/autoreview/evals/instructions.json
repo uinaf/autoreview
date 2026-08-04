@@ -31,9 +31,9 @@
       "why_given": "preference"
     },
     {
-      "instruction": "Keep strict isolation and web access off without explicit or trusted authorization",
-      "original_snippets": "Keep strict isolation and web access off unless the user explicitly authorizes the capability or an ownership-checked account-home XDG config enables it.",
-      "relevant_when": "Considering elevated provider capabilities",
+      "instruction": "Use native isolation by default and apply provider-specific web behavior",
+      "original_snippets": "Native isolation is the default and uses normal provider login from an empty\nbundle-only workspace. Select strict explicitly only when the task requires the\nhardened provider-state boundary and a supported API key is available. Keep web\naccess off for Codex and Claude unless configured; the skill's explicit\n`--engine cursor` selection implicitly enables an otherwise-unset value because\nCursor cannot guarantee web-off. Repository, environment, or XDG engine selection\ndoes not grant web access. Honor any explicit `web_access: false`, which makes\nCursor unavailable.",
+      "relevant_when": "Resolving provider isolation or web access",
       "why_given": "new knowledge"
     },
     {

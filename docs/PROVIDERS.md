@@ -27,7 +27,9 @@ The Codex adapter currently requires these observed CLI surfaces:
 - strict `exec`: `--ignore-user-config`, `--ignore-rules`, and `--sandbox`.
 
 Before model invocation, the adapter checks `--version`, both help surfaces,
-and `login status` when neither `CODEX_API_KEY` nor `OPENAI_API_KEY` is present. Capability,
+and `login status` in native mode when neither `CODEX_API_KEY` nor
+`OPENAI_API_KEY` is present. Strict mode requires one of those API keys and
+reports the exact requirement before probing the provider. Capability,
 authentication, timeout, cancellation, provider-process, and protocol failures
 remain distinct.
 
@@ -37,8 +39,8 @@ Web access is explicitly disabled unless enabled by trusted configuration.
 
 | Mode | Provider state | Codex controls |
 | --- | --- | --- |
-| `strict` | Empty home, XDG, and Codex directories; selected provider credential only | Read-only sandbox, ignored user config/rules, disabled hooks/plugins/skills/multi-agent, fixed shell environment |
-| `native` | Existing provider environment and authentication | User Codex configuration is preserved; review still runs in an empty temporary workspace |
+| `native` (default) | Existing provider environment and authentication | User Codex configuration is preserved; review still runs in an empty temporary workspace |
+| `strict` | Empty home, XDG, and Codex directories; `CODEX_API_KEY` or `OPENAI_API_KEY` | Read-only sandbox, ignored user config/rules, disabled hooks/plugins/skills/multi-agent, fixed shell environment |
 
 Codex structured outputs support a smaller JSON Schema vocabulary than the
 canonical local validator. Generation therefore uses a projection that omits
@@ -81,8 +83,8 @@ not exposed.
 
 | Mode | Authentication and configuration | Isolation controls |
 | --- | --- | --- |
-| `strict` | Empty home and Claude state; optional `ANTHROPIC_API_KEY` remains process-local | Safe mode, disabled auto-memory, strict MCP, no unsafe tools |
-| `native` | Existing Claude environment, keychain login, and user configuration | Empty provider workspace and explicit safe tool inventory |
+| `native` (default) | Existing Claude environment, keychain login, and user configuration | Empty provider workspace and explicit safe tool inventory |
+| `strict` | Empty home and Claude state; required `ANTHROPIC_API_KEY` remains process-local | Safe mode, disabled auto-memory, strict MCP, no unsafe tools |
 
 Default tests use a controlled fake executable. The optional authenticated
 smoke is:
@@ -98,16 +100,17 @@ workspace, trust, model, and authentication-status surfaces. Strict mode also
 requires and forces Cursor sandboxing. The reviewed source is never mounted in
 the provider workspace; the frozen prompt is delivered on standard input.
 
-Cursor Agent does not expose a documented per-run web-disable flag. The adapter
-therefore fails capability preflight when `web_access` is false rather than
-claiming an isolation guarantee it cannot enforce. Since repository config and
-environment variables cannot enable web access, a Cursor run requires explicit
-CLI authorization or trusted XDG configuration.
+Cursor Agent does not expose a documented per-run web-disable flag. Selecting
+Cursor with the explicit CLI `--engine cursor` therefore changes otherwise-unset
+web access to on implicitly. Engine selection from repository, environment, or
+XDG configuration does not grant web access. An explicit `web_access: false`
+remains authoritative, and the adapter then fails capability preflight rather
+than claiming an isolation guarantee it cannot enforce.
 
 | Mode | Authentication and configuration | Isolation controls |
 | --- | --- | --- |
-| `strict` | Empty home and Cursor state; optional `CURSOR_API_KEY` remains process-local | Ask mode, forced sandbox, generated deny rules for shell/file/MCP access |
-| `native` | Existing Cursor environment, login, and user configuration | Ask mode in an empty provider workspace; user sandbox configuration is preserved |
+| `native` (default) | Existing Cursor environment, login, and user configuration | Ask mode in an empty provider workspace; user sandbox configuration is preserved |
+| `strict` | Empty home and Cursor state; required `CURSOR_API_KEY` remains process-local | Ask mode, forced sandbox, generated deny rules for shell/file/MCP access; explicit CLI Cursor selection still implies web unless set false, which fails preflight |
 
 The model is explicit and defaults to `cursor-grok-4.5-high-fast`. Cursor model
 IDs encode effort, so a separate non-default `reasoning_effort` is rejected.

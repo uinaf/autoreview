@@ -198,6 +198,32 @@ func TestCursorReviewReportsAuthenticationFailure(t *testing.T) {
 	_ = assertProviderError(t, err, protocol.FailureAuth)
 }
 
+func TestCursorReviewStrictExplainsCredentialRequirement(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeCursor(t, fakeCursorOptions{})
+	reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: fake.path, Environment: []string{"PATH=/usr/bin:/bin"}})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: cursorConfig(protocol.IsolationStrict, true, 5*time.Second)})
+	failure := assertProviderError(t, err, protocol.FailureAuth)
+	if !strings.Contains(failure.Message, "strict isolation requires CURSOR_API_KEY") || !strings.Contains(failure.Message, "--isolation native") {
+		t.Fatalf("failure = %q", failure.Message)
+	}
+	if _, err := os.Stat(fake.arguments); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("provider was probed without a strict credential: %v", err)
+	}
+}
+
+func TestCursorReviewStrictReportsMissingExecutableBeforeCredential(t *testing.T) {
+	t.Parallel()
+
+	reviewer := NewCursor(CursorOptions{Repository: t.TempDir(), Executable: "missing-cursor", Environment: []string{"PATH=/usr/bin:/bin"}})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: cursorConfig(protocol.IsolationStrict, true, 5*time.Second)})
+	failure := assertProviderError(t, err, protocol.FailureCapability)
+	if !strings.Contains(failure.Message, "was not found") || strings.Contains(failure.Message, "API_KEY") {
+		t.Fatalf("failure = %q", failure.Message)
+	}
+}
+
 func TestCursorReviewRecordsTrailingObjectRecovery(t *testing.T) {
 	t.Parallel()
 

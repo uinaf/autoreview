@@ -92,7 +92,7 @@ func defaults() Effective {
 		Timeout:         Value[Duration]{Value: Duration(15 * time.Minute), Source: SourceDefault},
 		Retries:         Value[int]{Value: 1, Source: SourceDefault},
 		MaxBytes:        Value[int64]{Value: target.DefaultMaxBytes, Source: SourceDefault},
-		Isolation:       Value[protocol.Isolation]{Value: protocol.IsolationStrict, Source: SourceDefault},
+		Isolation:       Value[protocol.Isolation]{Value: protocol.IsolationNative, Source: SourceDefault},
 		WebAccess:       Value[bool]{Value: false, Source: SourceDefault},
 	}
 }

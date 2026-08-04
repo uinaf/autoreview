@@ -24,7 +24,7 @@ reasoning_effort: high
 timeout: 15m
 retries: 1
 max_bytes: 1048576
-isolation: strict
+isolation: native
 web_access: false
 ```
 
@@ -47,19 +47,32 @@ The corresponding environment variables are `AUTOREVIEW_ENGINE`,
 
 ## Security controls
 
-Web access defaults to off and isolation defaults to `strict`. Only an explicit
-CLI flag or the ownership-checked XDG file under the operating-system account
-home may enable web access or `native` isolation. A path selected through the
-`XDG_CONFIG_HOME` environment variable is still loaded at XDG precedence, but
-cannot enable either capability. Repository configuration and environment
-variables may keep those controls strict or make them stricter, but attempts to
-enable either capability fail.
+Isolation defaults to `native`, which preserves normal provider login and user
+configuration. Any source may select stricter `strict` isolation. A
+higher-precedence repository or environment source cannot weaken an already
+selected `strict` value back to `native`.
+
+Web access defaults to off for Codex and Claude. An explicit CLI
+`--engine cursor` changes an otherwise unset default to on because Cursor Agent
+has no documented per-run web-disable control. Cursor selected by repository,
+environment, or XDG engine configuration does not receive that implicit grant;
+pass `--web-access` with the explicit command, or set `web_access: true` in an
+ownership-checked account XDG config. An explicit `web_access: false` from any
+source remains authoritative and makes Cursor fail capability preflight. A path selected through
+`XDG_CONFIG_HOME`, repository configuration, and environment variables cannot
+enable web access. Their `web_access: true` values are rejected even when an
+explicit CLI Cursor selection would otherwise imply web; omit the untrusted
+restatement and let the flag-derived value apply.
 
 Both isolation modes run the provider from a new empty temporary workspace and
 pass only the already frozen review bundle. `strict` replaces home and provider
 state directories with empty temporary directories and preserves only required
 system variables, proxy and certificate settings, and supported provider API
 keys. `native` preserves the normal provider environment and user configuration.
+Strict authentication requires the provider's supported API-key environment
+variable; session-backed login belongs to native mode. Explicit CLI Cursor
+selection still grants otherwise-unset web access in strict mode; pass
+`--web-access=false` to reject that capability and fail preflight instead.
 
 ## Effective configuration
 
