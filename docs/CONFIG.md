@@ -56,9 +56,9 @@ Web access defaults to off for Codex and Claude. An explicit CLI
 `--engine cursor` changes an otherwise unset default to on because Cursor Agent
 has no documented per-run web-disable control. Cursor selected by repository,
 environment, or XDG engine configuration does not receive that implicit grant;
-set `web_access: true` in the same explicit command or ownership-checked account
-XDG config. An explicit `web_access: false` from any source remains authoritative
-and makes Cursor fail capability preflight. A path selected through
+pass `--web-access` with the explicit command, or set `web_access: true` in an
+ownership-checked account XDG config. An explicit `web_access: false` from any
+source remains authoritative and makes Cursor fail capability preflight. A path selected through
 `XDG_CONFIG_HOME`, repository configuration, and environment variables cannot
 enable web access. Their `web_access: true` values are rejected even when an
 explicit CLI Cursor selection would otherwise imply web; omit the untrusted

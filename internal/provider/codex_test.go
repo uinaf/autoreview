@@ -129,7 +129,12 @@ func TestCodexReviewReportsAuthenticationFailure(t *testing.T) {
 		Environment: []string{"PATH=/usr/bin:/bin", "HOME=/native/home"},
 	})
 	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationNative, false, 5*time.Second)})
-	_ = assertProviderError(t, err, protocol.FailureAuth)
+	failure := assertProviderError(t, err, protocol.FailureAuth)
+	for _, expected := range []string{"codex login", "CODEX_API_KEY", "OPENAI_API_KEY"} {
+		if !strings.Contains(failure.Message, expected) {
+			t.Fatalf("failure = %q", failure.Message)
+		}
+	}
 }
 
 func TestCodexReviewStrictExplainsCredentialRequirement(t *testing.T) {

@@ -13,22 +13,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uinaf/autoreview/internal/config"
 	"github.com/uinaf/autoreview/internal/protocol"
 )
 
 const providerOutputSentinel = "AR_REVIEW_SOURCE_SENTINEL_7f8e9d"
 
 func TestBinaryEndToEndWithFakeCodex(t *testing.T) {
-	workingDirectory, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	binary := filepath.Join(t.TempDir(), "autoreview")
-	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, ".")
-	build.Dir = workingDirectory
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build CLI: %v: %s", err, output)
-	}
+	binary := buildAutoreviewBinary(t)
 
 	tests := []struct {
 		name         string
@@ -130,6 +122,89 @@ func TestBinaryEndToEndWithFakeCodex(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBinaryConfigCommandReportsNativeAndCursorWebDefaults(t *testing.T) {
+	binary := buildAutoreviewBinary(t)
+	repository := cliRepository(t)
+
+	for _, test := range []struct {
+		name            string
+		arguments       []string
+		isolation       protocol.Isolation
+		isolationSource config.Source
+		web             bool
+		webSource       config.Source
+	}{
+		{name: "implicit", arguments: []string{"--engine", "cursor"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, web: true, webSource: config.SourceFlag},
+		{name: "explicit false", arguments: []string{"--engine", "cursor", "--web-access=false"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, webSource: config.SourceFlag},
+		{name: "strict still implicit", arguments: []string{"--engine", "cursor", "--isolation", "strict"}, isolation: protocol.IsolationStrict, isolationSource: config.SourceFlag, web: true, webSource: config.SourceFlag},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			effective := runBinaryConfig(t, binary, repository, test.arguments...)
+			if effective.Isolation.Value != test.isolation || effective.Isolation.Source != test.isolationSource {
+				t.Fatalf("isolation = %+v", effective.Isolation)
+			}
+			if effective.WebAccess.Value != test.web || effective.WebAccess.Source != test.webSource {
+				t.Fatalf("web_access = %+v", effective.WebAccess)
+			}
+		})
+	}
+
+	t.Run("repository engine does not grant web", func(t *testing.T) {
+		repository := cliRepository(t)
+		if err := os.WriteFile(filepath.Join(repository, ".autoreview.yaml"), []byte("engine: cursor\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		effective := runBinaryConfig(t, binary, repository)
+		if effective.Engine.Value != protocol.ProviderCursor || effective.Engine.Source != config.SourceRepository {
+			t.Fatalf("engine = %+v", effective.Engine)
+		}
+		if effective.WebAccess.Value || effective.WebAccess.Source != config.SourceDefault {
+			t.Fatalf("web_access = %+v", effective.WebAccess)
+		}
+	})
+}
+
+func buildAutoreviewBinary(t *testing.T) string {
+	t.Helper()
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(t.TempDir(), "autoreview")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, ".")
+	build.Dir = workingDirectory
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build CLI: %v: %s", err, output)
+	}
+	return binary
+}
+
+func runBinaryConfig(t *testing.T, binary, repository string, arguments ...string) config.Effective {
+	t.Helper()
+	commandArguments := append([]string{"config", "--repository", repository}, arguments...)
+	commandArguments = append(commandArguments, "--json")
+	command := exec.Command(binary, commandArguments...)
+	command.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + t.TempDir(),
+		"XDG_CONFIG_HOME=" + t.TempDir(),
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_SYSTEM=/dev/null",
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		t.Fatalf("config command: %v, stderr = %s", err, stderr.String())
+	}
+	var effective config.Effective
+	if err := json.Unmarshal(stdout.Bytes(), &effective); err != nil {
+		t.Fatalf("decode config JSON: %v: %s", err, stdout.String())
+	}
+	return effective
 }
 
 func writeFakeReviewTools(t *testing.T, scenario string) (string, string, string) {

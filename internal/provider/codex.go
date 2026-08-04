@@ -244,7 +244,7 @@ func (codex *Codex) preflight(ctx context.Context, executable string, runtime *c
 	if environmentValue(runtime.Environment(), "CODEX_API_KEY") == "" && environmentValue(runtime.Environment(), "OPENAI_API_KEY") == "" {
 		auth, err := run("login", "status")
 		if err != nil {
-			return "", probeFailure("Codex authentication", err, auth, runtime.Environment(), protocol.FailureAuth)
+			return "", probeFailureWithAuthRecovery("Codex authentication", err, auth, runtime.Environment(), protocol.FailureAuth, "run codex login or set CODEX_API_KEY or OPENAI_API_KEY, then retry")
 		}
 	}
 	return string(match[1]), nil
@@ -445,11 +445,15 @@ func processRecovery(class protocol.FailureClass, kind processErrorKind, authRec
 }
 
 func probeFailure(operation string, err error, result processResult, environment []string, fallback protocol.FailureClass) *Error {
+	return probeFailureWithAuthRecovery(operation, err, result, environment, fallback, "")
+}
+
+func probeFailureWithAuthRecovery(operation string, err error, result processResult, environment []string, fallback protocol.FailureClass, authRecovery string) *Error {
 	class := classifyProcessFailure(err, result)
 	if class == protocol.FailureProvider {
 		class = fallback
 	}
-	return processFailure(operation, class, err, result, environment, nil, "")
+	return processFailure(operation, class, err, result, environment, nil, authRecovery)
 }
 
 func newFailure(class protocol.FailureClass, message string, environment []string, attempt *protocol.Attempt) *Error {
