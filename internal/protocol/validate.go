@@ -82,6 +82,9 @@ func (review Review) Validate() error {
 	if err := boundedText("overall_explanation", review.OverallExplanation, 3000); err != nil {
 		return err
 	}
+	if utf8.RuneCountInString(strings.TrimSpace(review.OverallExplanation)) < 10 {
+		return fmt.Errorf("overall_explanation must contain at least 10 characters")
+	}
 	if !confidence(review.OverallConfidence) {
 		return fmt.Errorf("overall_confidence must be between 0 and 1")
 	}

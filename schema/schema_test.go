@@ -79,6 +79,27 @@ func TestResultSchemaAcceptsGrokProvider(t *testing.T) {
 	}
 }
 
+func TestSchemasRejectShortOverallExplanation(t *testing.T) {
+	t.Parallel()
+
+	reviewSchema := compileSchema(t, "review-v1.schema.json")
+	resultSchema := compileSchema(t, "result-v1.schema.json")
+	report := findingsInstance(t)
+	review := report["review"].(map[string]any)
+	review["overall_explanation"] = "I"
+	if err := reviewSchema.Validate(review); err == nil {
+		t.Fatal("review schema accepted one-character overall_explanation")
+	}
+	if err := resultSchema.Validate(report); err == nil {
+		t.Fatal("result schema accepted one-character overall_explanation")
+	}
+
+	review["overall_explanation"] = "No issues."
+	if err := reviewSchema.Validate(review); err != nil {
+		t.Fatalf("review schema rejected minimum overall_explanation: %v", err)
+	}
+}
+
 func TestSchemasRejectUnsafePaths(t *testing.T) {
 	t.Parallel()
 

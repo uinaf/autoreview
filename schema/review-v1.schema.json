@@ -17,7 +17,8 @@
     },
     "overall_explanation": {
       "type": "string",
-      "minLength": 1,
+      "description": "A concise explanation of the review result, including why the change is clean when findings is empty.",
+      "minLength": 10,
       "maxLength": 3000,
       "pattern": "\\S"
     },

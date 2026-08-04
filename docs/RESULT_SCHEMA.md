@@ -30,6 +30,11 @@ confidence. Status is derived locally from the validated finding count. This
 replaces the older independent `overall_correctness` string, which could
 contradict the findings array.
 
+The overall explanation must contain 10 to 3,000 Unicode characters after
+surrounding whitespace is removed. A clean review must briefly explain why no
+actionable defect was found; a non-empty placeholder such as `"I"` fails the
+canonical contract.
+
 Each finding contains:
 
 - a title of at most 140 Unicode characters
