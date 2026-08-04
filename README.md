@@ -72,7 +72,7 @@ autoreview review --mode branch --base origin/main --engine codex \
 Exit 0 means a valid clean review, exit 1 means valid findings, and exit 2 means
 no trustworthy review result.
 
-## Configuration and providers
+## Configuration and engines
 
 Configuration resolves flags, environment variables, repository
 `.autoreview.yaml`, account XDG config, then operational defaults. Native
@@ -85,7 +85,7 @@ Repository, environment, or XDG engine selection cannot grant web access. Select
 required.
 
 - [Configuration and isolation](docs/CONFIG.md)
-- [Codex, Claude, Cursor, and Grok execution](docs/PROVIDERS.md)
+- [Review engines](docs/engines/README.md)
 - [Local, branch, and commit targets](docs/TARGETS.md)
 - [Versioned result and exit contract](docs/RESULT_SCHEMA.md)
 
@@ -102,10 +102,6 @@ suspected vulnerabilities privately through the repository Security tab; see
 The CLI publishes signed macOS and Linux archives for amd64 and arm64 from
 verified `main` commits. Conventional Commits select the next CLI version, and
 the `uinaf/tap` Homebrew tap provides the prebuilt command.
-
-Cross-repository CI adoption and GitHub publication remain in
-[altaywtf/workspace issue #19](https://github.com/altaywtf/workspace/issues/19);
-release automation does not change the local review contract.
 
 The [migration matrix](docs/MIGRATION.md) records the Python-to-Go decisions and
 their v0.1 evidence. This project succeeds the
