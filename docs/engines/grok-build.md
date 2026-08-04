@@ -25,13 +25,14 @@ shell, edits, file reads, grep, and MCP tools. The `dontAsk` permission mode
 silently denies tools without an explicit allow rule and prevents interactive
 approval prompts. Tool filtering uses Grok's documented internal IDs. With web
 off, the adapter starts from `web_search` and removes it with
-`--disallowed-tools`, leaving no built-in tools for the model to call.
+`--disallowed-tools`. It also removes the always-on `search_tool` and `use_tool`
+MCP meta-tools, leaving no tools for the model to call.
 
 ## Isolation and web access
 
 Web access is off by default. `web_search` and `web_fetch` are removed when web
-access is off and are the only built-in tools when it is on. MCP meta-tools are
-permission-denied in both modes.
+access is off and are the only tools when it is on. MCP meta-tools are removed
+in both modes.
 
 | Mode | Authentication and configuration | Isolation controls |
 | --- | --- | --- |

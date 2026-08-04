@@ -252,14 +252,14 @@ func grokArguments(effective config.Effective, workspace, promptPath, schema, mo
 	if effective.WebAccess.Value {
 		arguments = append(arguments,
 			"--tools", "web_search,web_fetch",
-			"--disallowed-tools", "Agent",
+			"--disallowed-tools", "search_tool,use_tool,Agent",
 			"--allow", "WebFetch",
 			"--allow", "WebSearch",
 		)
 	} else {
 		arguments = append(arguments,
 			"--tools", "web_search",
-			"--disallowed-tools", "web_search,Agent",
+			"--disallowed-tools", "web_search,search_tool,use_tool,Agent",
 			"--disable-web-search",
 			"--deny", "WebFetch",
 			"--deny", "WebSearch",
