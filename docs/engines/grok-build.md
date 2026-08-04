@@ -48,6 +48,12 @@ structured-output error, and complete canonical review objects in both `text`
 and `structuredOutput`. Those decoded objects must agree exactly. Prose
 extraction and engine-local protocol recovery are not accepted.
 
+Grok treats the schema's unanchored non-whitespace string pattern as a
+full-string constraint and otherwise truncates explanations, titles, bodies,
+and paths to one character. The provider-facing projection omits only that
+pattern for Grok. Canonical decoding still enforces non-blank text, length
+bounds, and safe relative paths before a result can succeed.
+
 The compatibility contract and live structured-output smoke were confirmed
 against Grok Build CLI v0.2.118. Capability probes fail closed when a later CLI
 drops required flags, enumerated values, or authentication-status shape.

@@ -198,7 +198,7 @@ func TestClaudeReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
 	}
 }
 
-func TestGrokReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
+func TestGrokReviewSchemaProjectsUnsupportedKeywords(t *testing.T) {
 	t.Parallel()
 
 	data, err := contractschema.GrokReviewV1()
@@ -211,14 +211,28 @@ func TestGrokReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
 	}
 	definitions := requireObject(t, document["$defs"], "$defs")
 	relativePath := requireObject(t, definitions["relative_path"], "$defs.relative_path")
+	properties := requireObject(t, document["properties"], "properties")
+	overallExplanation := requireObject(t, properties["overall_explanation"], "properties.overall_explanation")
+	finding := requireObject(t, definitions["finding"], "$defs.finding")
+	findingProperties := requireObject(t, finding["properties"], "$defs.finding.properties")
 	if _, ok := document["$schema"]; ok {
 		t.Fatal("Grok schema retained unsupported $schema URI")
 	}
 	if _, ok := relativePath["not"]; ok {
 		t.Fatal("Grok schema retained unsupported not keyword")
 	}
-	if relativePath["type"] != "string" || relativePath["pattern"] != `\S` {
-		t.Fatalf("Grok relative_path constraints = %+v", relativePath)
+	for path, constraint := range map[string]map[string]any{
+		"properties.overall_explanation": overallExplanation,
+		"$defs.relative_path":            relativePath,
+		"$defs.finding.properties.title": requireObject(t, findingProperties["title"], "$defs.finding.properties.title"),
+		"$defs.finding.properties.body":  requireObject(t, findingProperties["body"], "$defs.finding.properties.body"),
+	} {
+		if _, ok := constraint["pattern"]; ok {
+			t.Fatalf("Grok schema retained unsupported non-whitespace pattern at %s", path)
+		}
+		if constraint["type"] != "string" || constraint["minLength"] == nil || constraint["maxLength"] == nil {
+			t.Fatalf("Grok string constraints at %s = %+v", path, constraint)
+		}
 	}
 }
 
