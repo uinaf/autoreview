@@ -2,8 +2,7 @@
 
 A Go pull request is implementation-complete and its full test suite has passed.
 No provider is named by the user or repository configuration. Codex CLI, Claude
-Code, and Cursor Agent are installed. The user has not authorized web access or
-use of their normal provider configuration.
+Code, and Cursor Agent are installed. No task requirement needs web access.
 
 Write `closeout.md` containing the exact review command you would run, the
 decision behind it, how you would handle failure, and what evidence the final

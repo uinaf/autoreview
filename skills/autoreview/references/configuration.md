@@ -25,7 +25,7 @@ reasoning_effort: high
 timeout: 15m
 retries: 1
 max_bytes: 1048576
-isolation: strict
+isolation: native
 web_access: false
 ```
 
@@ -38,7 +38,14 @@ Unknown keys, loose YAML booleans, multiple documents, retry counts outside
 zero or one, and invalid types fail closed. There are no profiles or local
 override files. `max_bytes` defaults to 1 MiB and cannot exceed 128 MiB.
 
-Only an explicit CLI flag or an ownership-checked XDG file under the operating
-system account home may enable `native` isolation or web access. Repository
-configuration, environment variables, and an XDG path selected through
-`XDG_CONFIG_HOME` cannot enable those capabilities.
+Native isolation is the default and preserves session-backed provider login in
+an empty bundle-only workspace. Any source may select `strict`; an untrusted
+higher-precedence source cannot weaken an already selected strict value. Strict
+mode requires the provider's supported API-key environment variable.
+
+Web access defaults off for Codex and Claude. Explicit CLI `--engine cursor`
+enables otherwise-unset web access implicitly because Cursor cannot guarantee a
+per-run web disable. Repository, environment, or XDG engine selection does not
+grant web access. Explicit `web_access: false` remains authoritative and
+prevents a Cursor run. Only an explicit flag or ownership-checked account-home
+XDG file may otherwise enable web access.

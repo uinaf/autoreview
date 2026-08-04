@@ -1,1 +1,1 @@
-Isolation authorization
+Session authentication recovery

@@ -66,6 +66,130 @@ func TestLoadUsesDocumentedPrecedenceAndSources(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultsToNativeAndEnablesCursorWebImplicitly(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name   string
+		engine protocol.ProviderName
+		web    bool
+	}{
+		{name: "Codex keeps web disabled", engine: protocol.ProviderCodex},
+		{name: "Claude keeps web disabled", engine: protocol.ProviderClaude},
+		{name: "Cursor enables web", engine: protocol.ProviderCursor, web: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repository := configRepository(t)
+			effective, err := Load(context.Background(), Options{
+				Repository: repository,
+				LookupEnv:  envLookup(map[string]string{"XDG_CONFIG_HOME": t.TempDir()}),
+				HomeDir:    func() (string, error) { return t.TempDir(), nil },
+				Overrides:  Overrides{Engine: &test.engine},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if effective.Isolation.Value != protocol.IsolationNative || effective.Isolation.Source != SourceDefault {
+				t.Fatalf("isolation = %+v", effective.Isolation)
+			}
+			expectedWebSource := SourceDefault
+			if test.engine == protocol.ProviderCursor {
+				expectedWebSource = SourceFlag
+			}
+			if effective.WebAccess.Value != test.web || effective.WebAccess.Source != expectedWebSource {
+				t.Fatalf("web_access = %+v", effective.WebAccess)
+			}
+		})
+	}
+}
+
+func TestCursorImplicitWebRequiresFlagEngineAndHonorsExplicitFalse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("untrusted engine sources", func(t *testing.T) {
+		for _, test := range []struct {
+			name        string
+			xdg         string
+			repository  string
+			environment map[string]string
+		}{
+			{name: "repository", repository: "engine: cursor\n"},
+			{name: "environment", environment: map[string]string{"AUTOREVIEW_ENGINE": "cursor"}},
+			{name: "environment-selected XDG", xdg: "engine: cursor\n"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				repository := configRepository(t)
+				if test.repository != "" {
+					writeConfig(t, filepath.Join(repository, ".autoreview.yaml"), test.repository)
+				}
+				xdg := t.TempDir()
+				if test.xdg != "" {
+					writeConfig(t, filepath.Join(xdg, "autoreview", "config.yaml"), test.xdg)
+				}
+				environment := map[string]string{"XDG_CONFIG_HOME": xdg}
+				for name, value := range test.environment {
+					environment[name] = value
+				}
+				effective, err := Load(context.Background(), Options{
+					Repository: repository,
+					LookupEnv:  envLookup(environment),
+					HomeDir:    func() (string, error) { return t.TempDir(), nil },
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if effective.Engine.Value != protocol.ProviderCursor || effective.WebAccess.Value || effective.WebAccess.Source != SourceDefault {
+					t.Fatalf("effective config = %+v", effective)
+				}
+			})
+		}
+	})
+
+	t.Run("explicit false sources", func(t *testing.T) {
+		for _, test := range []struct {
+			name        string
+			xdg         string
+			repository  string
+			environment map[string]string
+			override    *bool
+			source      Source
+		}{
+			{name: "repository", repository: "web_access: false\n", source: SourceRepository},
+			{name: "environment", environment: map[string]string{"AUTOREVIEW_WEB_ACCESS": "false"}, source: SourceEnvironment},
+			{name: "environment-selected XDG", xdg: "web_access: false\n", source: SourceXDG},
+			{name: "flag", override: boolPointer(false), source: SourceFlag},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				repository := configRepository(t)
+				if test.repository != "" {
+					writeConfig(t, filepath.Join(repository, ".autoreview.yaml"), test.repository)
+				}
+				xdg := t.TempDir()
+				if test.xdg != "" {
+					writeConfig(t, filepath.Join(xdg, "autoreview", "config.yaml"), test.xdg)
+				}
+				environment := map[string]string{"XDG_CONFIG_HOME": xdg}
+				for name, value := range test.environment {
+					environment[name] = value
+				}
+				engine := protocol.ProviderCursor
+				effective, err := Load(context.Background(), Options{
+					Repository: repository,
+					LookupEnv:  envLookup(environment),
+					HomeDir:    func() (string, error) { return t.TempDir(), nil },
+					Overrides:  Overrides{Engine: &engine, WebAccess: test.override},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if effective.WebAccess.Value || effective.WebAccess.Source != test.source {
+					t.Fatalf("web_access = %+v", effective.WebAccess)
+				}
+			})
+		}
+	})
+}
+
 func TestLoadRejectsUnknownRepositoryKeyWithSource(t *testing.T) {
 	t.Parallel()
 
@@ -83,19 +207,28 @@ func TestUntrustedSourcesCannotWeakenIsolation(t *testing.T) {
 
 	for _, test := range []struct {
 		name        string
+		xdg         string
 		repository  string
 		environment map[string]string
 	}{
-		{name: "repository native", repository: "engine: codex\nisolation: native\n"},
+		{name: "repository weakens trusted strict", xdg: "engine: codex\nisolation: strict\n", repository: "isolation: native\n"},
+		{name: "environment weakens repository strict", repository: "engine: codex\nisolation: strict\n", environment: map[string]string{"AUTOREVIEW_ISOLATION": "native"}},
 		{name: "repository web", repository: "engine: codex\nweb_access: true\n"},
-		{name: "environment native", repository: "engine: codex\n", environment: map[string]string{"AUTOREVIEW_ISOLATION": "native"}},
 		{name: "environment web", repository: "engine: codex\n", environment: map[string]string{"AUTOREVIEW_WEB_ACCESS": "true"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			repository := configRepository(t)
 			writeConfig(t, filepath.Join(repository, ".autoreview.yaml"), test.repository)
-			_, err := loadWithoutUserConfig(t, repository, test.environment)
-			if err == nil || (!strings.Contains(err.Error(), "cannot enable native") && !strings.Contains(err.Error(), "cannot enable web")) {
+			home := t.TempDir()
+			if test.xdg != "" {
+				writeConfig(t, filepath.Join(home, ".config", "autoreview", "config.yaml"), test.xdg)
+			}
+			_, err := Load(context.Background(), Options{
+				Repository: repository,
+				LookupEnv:  envLookup(test.environment),
+				HomeDir:    func() (string, error) { return home, nil },
+			})
+			if err == nil || (!strings.Contains(err.Error(), "cannot weaken strict") && !strings.Contains(err.Error(), "cannot enable web")) {
 				t.Fatalf("Load() error = %v", err)
 			}
 		})
@@ -121,18 +254,29 @@ func TestTrustedXDGCanEnableNativeIsolationAndWeb(t *testing.T) {
 	}
 }
 
-func TestEnvironmentSelectedXDGCannotEnableCapabilities(t *testing.T) {
+func TestEnvironmentSelectedXDGCanRepeatNativeDefaultButCannotEnableWeb(t *testing.T) {
 	t.Parallel()
 
 	repository := configRepository(t)
 	xdg := t.TempDir()
 	writeConfig(t, filepath.Join(xdg, "autoreview", "config.yaml"), "engine: codex\nisolation: native\n")
-	_, err := Load(context.Background(), Options{
+	effective, err := Load(context.Background(), Options{
 		Repository: repository,
 		LookupEnv:  envLookup(map[string]string{"XDG_CONFIG_HOME": xdg}),
 		HomeDir:    func() (string, error) { return t.TempDir(), nil },
 	})
-	if err == nil || !strings.Contains(err.Error(), "xdg config cannot enable native") {
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if effective.Isolation.Value != protocol.IsolationNative || effective.Isolation.Source != SourceXDG {
+		t.Fatalf("isolation = %+v", effective.Isolation)
+	}
+	writeConfig(t, filepath.Join(xdg, "autoreview", "config.yaml"), "engine: codex\nweb_access: true\n")
+	if _, err := Load(context.Background(), Options{
+		Repository: repository,
+		LookupEnv:  envLookup(map[string]string{"XDG_CONFIG_HOME": xdg}),
+		HomeDir:    func() (string, error) { return t.TempDir(), nil },
+	}); err == nil || !strings.Contains(err.Error(), "xdg config cannot enable web") {
 		t.Fatalf("Load() error = %v", err)
 	}
 }
@@ -448,6 +592,7 @@ func TestPrepareStrictRuntimeSanitizesStateAndUsesEmptyWorkspace(t *testing.T) {
 
 	effective := defaults()
 	effective.Engine.Value = protocol.ProviderCodex
+	effective.Isolation.Value = protocol.IsolationStrict
 	runtime, err := PrepareRuntime(effective, []string{
 		"PATH=/usr/bin",
 		"HOME=/private/home",
@@ -603,6 +748,10 @@ func envLookup(values map[string]string) func(string) (string, bool) {
 		value, ok := values[name]
 		return value, ok
 	}
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }
 
 func configRepository(t *testing.T) string {
