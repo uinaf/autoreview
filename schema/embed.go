@@ -21,6 +21,10 @@ func ClaudeReviewV1() ([]byte, error) {
 	return providerReviewV1("Claude", true)
 }
 
+func GrokReviewV1() ([]byte, error) {
+	return providerReviewV1("Grok", true)
+}
+
 func providerReviewV1(provider string, omitDraftURI bool) ([]byte, error) {
 	var document map[string]any
 	if err := json.Unmarshal(reviewV1, &document); err != nil {

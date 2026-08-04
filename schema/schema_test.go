@@ -65,6 +65,20 @@ func TestFixturesValidateAgainstSchemas(t *testing.T) {
 	}
 }
 
+func TestResultSchemaAcceptsGrokProvider(t *testing.T) {
+	t.Parallel()
+
+	schema := compileSchema(t, "result-v1.schema.json")
+	report := findingsInstance(t)
+	provider := report["metadata"].(map[string]any)["provider"].(map[string]any)
+	provider["name"] = "grok"
+	provider["model"] = "grok-4.5"
+	provider["version"] = "0.2.118"
+	if err := schema.Validate(report); err != nil {
+		t.Fatalf("result schema rejected Grok provider: %v", err)
+	}
+}
+
 func TestSchemasRejectUnsafePaths(t *testing.T) {
 	t.Parallel()
 
@@ -160,6 +174,30 @@ func TestClaudeReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
 	}
 	if relativePath["type"] != "string" || relativePath["pattern"] != `\S` {
 		t.Fatalf("Claude relative_path constraints = %+v", relativePath)
+	}
+}
+
+func TestGrokReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
+	t.Parallel()
+
+	data, err := contractschema.GrokReviewV1()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	definitions := requireObject(t, document["$defs"], "$defs")
+	relativePath := requireObject(t, definitions["relative_path"], "$defs.relative_path")
+	if _, ok := document["$schema"]; ok {
+		t.Fatal("Grok schema retained unsupported $schema URI")
+	}
+	if _, ok := relativePath["not"]; ok {
+		t.Fatal("Grok schema retained unsupported not keyword")
+	}
+	if relativePath["type"] != "string" || relativePath["pattern"] != `\S` {
+		t.Fatalf("Grok relative_path constraints = %+v", relativePath)
 	}
 }
 

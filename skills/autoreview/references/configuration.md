@@ -8,8 +8,8 @@ Autoreview resolves one flat typed configuration in this precedence order:
 4. account XDG config
 5. built-in operational defaults
 
-The engine has no built-in default. Valid engines are `codex`, `claude`, and
-`cursor`. Inspect resolved values and their source with:
+The engine has no built-in default. Valid engines are `codex`, `claude`,
+`cursor`, and `grok`. Inspect resolved values and their source with:
 
 ```bash
 autoreview config --repository . --engine "$engine"
@@ -43,7 +43,7 @@ an empty bundle-only workspace. Any source may select `strict`; an untrusted
 higher-precedence source cannot weaken an already selected strict value. Strict
 mode requires the provider's supported API-key environment variable.
 
-Web access defaults off for Codex and Claude. Explicit CLI `--engine cursor`
+Web access defaults off for Codex, Claude, and Grok. Explicit CLI `--engine cursor`
 enables otherwise-unset web access implicitly because Cursor cannot guarantee a
 per-run web disable. Repository, environment, or XDG engine selection does not
 grant web access. Explicit `web_access: false` remains authoritative and

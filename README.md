@@ -3,9 +3,9 @@
 # autoreview
 
 `autoreview` is a Go CLI and agent skill for one structured, independent code
-review through Codex CLI, Claude Code, or Cursor Agent. It freezes an explicit
-Git target, scans the complete bundle for secrets, validates the provider
-result locally, and emits a stable terminal or JSON report.
+review through Codex CLI, Claude Code, Cursor Agent, or Grok Build. It freezes
+an explicit Git target, scans the complete bundle for secrets, validates the
+provider result locally, and emits a stable terminal or JSON report.
 
 ## Install
 
@@ -78,14 +78,14 @@ Configuration resolves flags, environment variables, repository
 `.autoreview.yaml`, account XDG config, then operational defaults. Native
 isolation preserves session-backed provider login while keeping the frozen
 bundle in an empty provider workspace, so it is the default. Web access remains
-off for Codex and Claude; an explicit CLI `--engine cursor` enables it
+off for Codex, Claude, and Grok; an explicit CLI `--engine cursor` enables it
 implicitly because Cursor Agent has no documented per-run web-disable control.
 Repository, environment, or XDG engine selection cannot grant web access. Select
 `strict` explicitly when a provider API key and hardened provider state are
 required.
 
 - [Configuration and isolation](docs/CONFIG.md)
-- [Codex, Claude, and Cursor execution](docs/PROVIDERS.md)
+- [Codex, Claude, Cursor, and Grok execution](docs/PROVIDERS.md)
 - [Local, branch, and commit targets](docs/TARGETS.md)
 - [Versioned result and exit contract](docs/RESULT_SCHEMA.md)
 
@@ -103,9 +103,9 @@ The CLI publishes signed macOS and Linux archives for amd64 and arm64 from
 verified `main` commits. Conventional Commits select the next CLI version, and
 the `uinaf/tap` Homebrew tap provides the prebuilt command.
 
-GitHub Checks integration and CI-hosted review reporting remain in
-[issue #11](https://github.com/uinaf/autoreview/issues/11); release automation
-does not change the local review contract.
+Cross-repository CI adoption and GitHub publication remain in
+[altaywtf/workspace issue #19](https://github.com/altaywtf/workspace/issues/19);
+release automation does not change the local review contract.
 
 The [migration matrix](docs/MIGRATION.md) records the Python-to-Go decisions and
 their v0.1 evidence. This project succeeds the

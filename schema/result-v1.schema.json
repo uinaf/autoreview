@@ -319,7 +319,7 @@
       "required": ["name", "model", "version"],
       "properties": {
         "name": {
-          "enum": ["codex", "claude", "cursor"]
+          "enum": ["codex", "claude", "cursor", "grok"]
         },
         "model": {
           "type": "string",

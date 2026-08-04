@@ -41,6 +41,7 @@ const (
 	ProviderCodex  ProviderName = "codex"
 	ProviderClaude ProviderName = "claude"
 	ProviderCursor ProviderName = "cursor"
+	ProviderGrok   ProviderName = "grok"
 )
 
 type Isolation string

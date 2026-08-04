@@ -7,8 +7,9 @@ report, or mutate the reviewed repository.
 ## Shared process boundary
 
 The runtime resolves each executable to a regular executable outside the
-reviewed repository. Provider commands are argument arrays executed directly;
-repository material is sent only on standard input.
+reviewed repository. Provider commands are argument arrays executed directly.
+Repository material is sent on standard input or through a private temporary
+prompt file and is never placed in process arguments.
 
 Every process runs in its own process group with a fixed timeout, cancellation,
 and bounded stdout and stderr. Before the leader is reaped, the runtime
@@ -131,4 +132,56 @@ The optional authenticated smoke is:
 
 ```bash
 AUTOREVIEW_TEST_LIVE_CURSOR=1 go test ./internal/provider -run '^TestCursorLive$' -count=1 -v
+```
+
+## Grok Build
+
+Install the official CLI and authenticate before selecting the provider:
+
+```bash
+npm install --global @xai-official/grok
+grok login
+```
+
+The Grok adapter requires the official headless prompt-file, JSON Schema,
+explicit model and effort, bounded turns, permission, feature-disable, working
+directory, and authentication surfaces. It probes `--version`, `--help`, and
+`grok models` before model invocation when `XAI_API_KEY` is absent.
+
+The frozen prompt is written to a private `0600` file inside the empty provider
+workspace and removed with that workspace after the run. The prompt never
+appears in process arguments. Every run disables plan mode, subagents, memory,
+shell, edits, file reads, grep, and MCP tools. WebSearch and WebFetch are denied
+when web access is off and are the only explicitly allowed tools when it is on.
+The built-in tool inventory is empty when web is off and contains only those two
+web tools when enabled. The `dontAsk` permission mode silently denies anything
+without an explicit allow rule and prevents interactive approval prompts.
+
+| Mode | Authentication and configuration | Isolation controls |
+| --- | --- | --- |
+| `native` (default) | Existing Grok environment, `grok login` session, and user configuration | Empty provider workspace and explicit per-run tool and feature policy |
+| `strict` | Empty home and `GROK_HOME`; required `XAI_API_KEY` remains process-local | Grok `workspace` sandbox plus the same explicit deny policy |
+
+The model is explicit and defaults to `grok-4.5`; there is no fallback. The
+adapter fixes `--max-turns 2`: the supported CLI can return exit zero with a
+cancelled, missing structured result when bounded to one turn. Success therefore
+requires `stopReason: end_turn`, non-empty session and request identifiers, no
+structured-output error, and complete canonical review objects in both `text`
+and `structuredOutput`. Those objects must agree exactly after decoding. No
+prose extraction or protocol recovery is attempted.
+
+The compatibility contract and live structured-output smoke were confirmed
+against Grok Build CLI v0.2.118. Capability probes fail closed when a later CLI
+drops required flags, enumerated values, or authentication-status shape.
+
+Each review attempt invokes the selected xAI model and may consume plan or API
+quota. A configured protocol retry invokes it once more only after malformed
+output; authentication, capability, timeout, cancellation, and process failures
+are never retried.
+
+Default tests use a controlled fake executable. The optional authenticated
+smoke is:
+
+```bash
+AUTOREVIEW_TEST_LIVE_GROK=1 go test ./internal/provider -run '^TestGrokLive$' -count=1 -v
 ```

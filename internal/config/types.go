@@ -99,7 +99,7 @@ func defaults() Effective {
 
 func (effective Effective) Validate() error {
 	switch effective.Engine.Value {
-	case protocol.ProviderCodex, protocol.ProviderClaude, protocol.ProviderCursor:
+	case protocol.ProviderCodex, protocol.ProviderClaude, protocol.ProviderCursor, protocol.ProviderGrok:
 	case "":
 		return fmt.Errorf("engine is required from a flag or configuration source")
 	default:

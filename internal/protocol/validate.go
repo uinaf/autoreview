@@ -198,7 +198,7 @@ func (target Target) validate() error {
 
 func (provider Provider) validate() error {
 	switch provider.Name {
-	case ProviderCodex, ProviderClaude, ProviderCursor:
+	case ProviderCodex, ProviderClaude, ProviderCursor, ProviderGrok:
 	default:
 		return fmt.Errorf("invalid provider.name %q", provider.Name)
 	}
