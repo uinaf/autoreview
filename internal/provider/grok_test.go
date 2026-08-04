@@ -48,7 +48,8 @@ func TestGrokReviewStrictUsesFrozenPromptAndBoundedPolicy(t *testing.T) {
 	for _, required := range []string{
 		"--prompt-file", "--output-format", "json", "--json-schema", "--model", "test-model", "--reasoning-effort", "high",
 		"--max-turns", "2", "--permission-mode", "dontAsk", "--no-plan", "--no-subagents", "--no-memory", "--verbatim",
-		"--cwd", "--deny", "Bash", "Edit", "Read", "Grep", "MCPTool", "--tools", "--disable-web-search", "WebFetch", "WebSearch",
+		"--cwd", "--deny", "Bash", "Edit", "Write", "Read", "Grep", "MCPTool", "--tools", "--disallowed-tools",
+		"web_search", "web_search,Agent", "--disable-web-search", "WebFetch", "WebSearch",
 		"--sandbox", "workspace",
 	} {
 		if !contains(arguments, required) {
@@ -86,7 +87,7 @@ func TestGrokReviewNativeUsesSessionAuthAndExplicitWebPolicy(t *testing.T) {
 			t.Errorf("Grok web arguments omitted %q: %v", required, arguments)
 		}
 	}
-	if argumentAfter(arguments, "--tools") != "WebFetch,WebSearch" {
+	if argumentAfter(arguments, "--tools") != "web_search,web_fetch" || argumentAfter(arguments, "--disallowed-tools") != "Agent" {
 		t.Fatalf("Grok web tool inventory = %v", arguments)
 	}
 	for _, forbidden := range []string{"--disable-web-search", "--sandbox"} {
@@ -354,8 +355,8 @@ func newFakeGrok(t *testing.T, options fakeGrokOptions) fakeGrok {
 		"[ \"${1:-}\" = '--permission-mode' ] || fail_contract; shift; [ \"${1:-}\" = 'dontAsk' ] || fail_contract; shift\n" +
 		"for flag in --no-plan --no-subagents --no-memory --verbatim; do [ \"${1:-}\" = \"$flag\" ] || fail_contract; shift; done\n" +
 		"[ \"${1:-}\" = '--cwd' ] || fail_contract; shift; [ -d \"${1:-}\" ] || fail_contract; shift\n" +
-		"for tool in Bash Edit Read Grep MCPTool; do [ \"${1:-}\" = '--deny' ] || fail_contract; shift; [ \"${1:-}\" = \"$tool\" ] || fail_contract; shift; done\n" +
-		"[ \"${1:-}\" = '--tools' ] || fail_contract; shift; if [ \"${1:-}\" = 'WebFetch,WebSearch' ]; then shift; [ \"${1:-}\" = '--allow' ] || fail_contract; shift; [ \"${1:-}\" = 'WebFetch' ] || fail_contract; shift; [ \"${1:-}\" = '--allow' ] || fail_contract; shift; [ \"${1:-}\" = 'WebSearch' ] || fail_contract; shift; else [ -z \"${1:-}\" ] || fail_contract; shift; [ \"${1:-}\" = '--disable-web-search' ] || fail_contract; shift; for tool in WebFetch WebSearch; do [ \"${1:-}\" = '--deny' ] || fail_contract; shift; [ \"${1:-}\" = \"$tool\" ] || fail_contract; shift; done; fi\n" +
+		"for tool in Bash Edit Write Read Grep MCPTool; do [ \"${1:-}\" = '--deny' ] || fail_contract; shift; [ \"${1:-}\" = \"$tool\" ] || fail_contract; shift; done\n" +
+		"[ \"${1:-}\" = '--tools' ] || fail_contract; shift; if [ \"${1:-}\" = 'web_search,web_fetch' ]; then shift; [ \"${1:-}\" = '--disallowed-tools' ] || fail_contract; shift; [ \"${1:-}\" = 'Agent' ] || fail_contract; shift; [ \"${1:-}\" = '--allow' ] || fail_contract; shift; [ \"${1:-}\" = 'WebFetch' ] || fail_contract; shift; [ \"${1:-}\" = '--allow' ] || fail_contract; shift; [ \"${1:-}\" = 'WebSearch' ] || fail_contract; shift; else [ \"${1:-}\" = 'web_search' ] || fail_contract; shift; [ \"${1:-}\" = '--disallowed-tools' ] || fail_contract; shift; [ \"${1:-}\" = 'web_search,Agent' ] || fail_contract; shift; [ \"${1:-}\" = '--disable-web-search' ] || fail_contract; shift; for tool in WebFetch WebSearch; do [ \"${1:-}\" = '--deny' ] || fail_contract; shift; [ \"${1:-}\" = \"$tool\" ] || fail_contract; shift; done; fi\n" +
 		"if [ \"${1:-}\" = '--sandbox' ]; then shift; [ \"${1:-}\" = 'workspace' ] || fail_contract; shift; fi\n" +
 		"[ \"$#\" -eq 0 ] || fail_contract\n" +
 		"cat \"$prompt_path\" > " + shellQuote(fake.prompt) + "\n" +
@@ -376,6 +377,7 @@ func grokHelp() string {
 		"--max-turns <n>",
 		"--permission-mode <mode> possible values: default, dontAsk",
 		"--tools <tools>",
+		"--disallowed-tools <tools>",
 		"--allow <rule>",
 		"--deny <rule>",
 		"--no-plan", "--no-subagents", "--no-memory", "--disable-web-search", "--verbatim", "--cwd <path>", "--sandbox <profile>", "models",

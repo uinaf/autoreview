@@ -23,12 +23,15 @@ workspace and removed with that workspace after the run. The prompt never
 appears in process arguments. Every run disables plan mode, subagents, memory,
 shell, edits, file reads, grep, and MCP tools. The `dontAsk` permission mode
 silently denies tools without an explicit allow rule and prevents interactive
-approval prompts.
+approval prompts. Tool filtering uses Grok's documented internal IDs. With web
+off, the adapter starts from `web_search` and removes it with
+`--disallowed-tools`, leaving no built-in tools for the model to call.
 
 ## Isolation and web access
 
-Web access is off by default. `WebSearch` and `WebFetch` are denied when web
-access is off and are the only available tools when it is on.
+Web access is off by default. `web_search` and `web_fetch` are removed when web
+access is off and are the only built-in tools when it is on. MCP meta-tools are
+permission-denied in both modes.
 
 | Mode | Authentication and configuration | Isolation controls |
 | --- | --- | --- |

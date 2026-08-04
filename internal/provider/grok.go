@@ -200,7 +200,7 @@ func (grok *Grok) preflight(ctx context.Context, executable, workspace string, e
 	}
 	required := []string{
 		"--prompt-file", "--output-format", "--json-schema", "--model", "--reasoning-effort", "--max-turns",
-		"--permission-mode", "--tools", "--allow", "--deny", "--no-plan", "--no-subagents", "--no-memory", "--disable-web-search",
+		"--permission-mode", "--tools", "--disallowed-tools", "--allow", "--deny", "--no-plan", "--no-subagents", "--no-memory", "--disable-web-search",
 		"--verbatim", "--cwd", "models",
 	}
 	if effective.Isolation.Value == protocol.IsolationStrict {
@@ -244,14 +244,26 @@ func grokArguments(effective config.Effective, workspace, promptPath, schema, mo
 		"--cwd", workspace,
 		"--deny", "Bash",
 		"--deny", "Edit",
+		"--deny", "Write",
 		"--deny", "Read",
 		"--deny", "Grep",
 		"--deny", "MCPTool",
 	}
 	if effective.WebAccess.Value {
-		arguments = append(arguments, "--tools", "WebFetch,WebSearch", "--allow", "WebFetch", "--allow", "WebSearch")
+		arguments = append(arguments,
+			"--tools", "web_search,web_fetch",
+			"--disallowed-tools", "Agent",
+			"--allow", "WebFetch",
+			"--allow", "WebSearch",
+		)
 	} else {
-		arguments = append(arguments, "--tools", "", "--disable-web-search", "--deny", "WebFetch", "--deny", "WebSearch")
+		arguments = append(arguments,
+			"--tools", "web_search",
+			"--disallowed-tools", "web_search,Agent",
+			"--disable-web-search",
+			"--deny", "WebFetch",
+			"--deny", "WebSearch",
+		)
 	}
 	if effective.Isolation.Value == protocol.IsolationStrict {
 		arguments = append(arguments, "--sandbox", "workspace")

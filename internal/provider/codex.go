@@ -397,7 +397,7 @@ func classifyProcessFailure(err error, result processResult) protocol.FailureCla
 			return protocol.FailureCancelled
 		}
 	}
-	detail := strings.ToLower(string(result.Stderr) + "\n" + string(result.Stdout))
+	detail := strings.ToLower(string(result.Stderr))
 	for _, marker := range []string{"not logged in", "unauthorized", "authentication", "login required", "401"} {
 		if strings.Contains(detail, marker) {
 			return protocol.FailureAuth
