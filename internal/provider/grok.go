@@ -148,7 +148,7 @@ func (grok *Grok) Review(ctx context.Context, request Request) (result Result, r
 		}
 		attempt.ErrorClass = &class
 		if class == protocol.FailureProvider {
-			return Result{}, newFailure(class, errGrokIncompleteTurn.Error(), runtime.Environment(), &attempt)
+			return Result{}, newFailure(class, err.Error(), runtime.Environment(), &attempt)
 		}
 		return Result{}, invalidProviderOutput("Grok", "result envelope", runtime.Environment(), &attempt)
 	}
@@ -303,7 +303,11 @@ func decodeGrokEnvelope(output []byte) (protocol.Review, error) {
 		return protocol.Review{}, err
 	}
 	if envelope.StopReason != "end_turn" {
-		return protocol.Review{}, fmt.Errorf("%w: stop reason %q", errGrokIncompleteTurn, envelope.StopReason)
+		detail := "stop reason was not end_turn"
+		if envelope.StopReason == "cancelled" {
+			detail = "stop reason cancelled"
+		}
+		return protocol.Review{}, fmt.Errorf("%w: %s", errGrokIncompleteTurn, detail)
 	}
 	if strings.TrimSpace(envelope.SessionID) == "" || strings.TrimSpace(envelope.RequestID) == "" {
 		return protocol.Review{}, fmt.Errorf("%w: missing request identifiers", errGrokIncompleteTurn)

@@ -7,7 +7,7 @@ Effort must be `low`, `medium`, `high`, `xhigh`, or `max`.
 ## Runtime contract
 
 The adapter capability-probes the installed CLI before model invocation. Every
-mode requires `--print`, `--no-session-persistence`, JSON structured output, an
+mode requires `--print`, `--no-session-persistence`, JSON-structured output, an
 explicit model and effort, a fixed tool inventory, `dontAsk` permissions, and
 disabled Chrome integration. Strict mode also requires `--safe-mode`, user-only
 setting sources, strict MCP configuration, and an MCP-tool deny rule.

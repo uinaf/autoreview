@@ -4,7 +4,7 @@ Select this engine with `--engine grok`. Install the official CLI and
 authenticate before the first native review:
 
 ```bash
-npm install --global @xai-official/grok
+npm install --global @xai-official/grok@0.2.118
 grok login
 ```
 

@@ -56,6 +56,14 @@ func TestGrokReviewStrictUsesFrozenPromptAndBoundedPolicy(t *testing.T) {
 			t.Errorf("Grok arguments omitted %q: %v", required, arguments)
 		}
 	}
+	if argumentAfter(arguments, "--tools") != "web_search" || argumentAfter(arguments, "--disallowed-tools") != "web_search,search_tool,use_tool,Agent" {
+		t.Fatalf("Grok strict tool inventory = %v", arguments)
+	}
+	for _, tool := range []string{"WebFetch", "WebSearch"} {
+		if !containsArgumentPair(arguments, "--deny", tool) || containsArgumentPair(arguments, "--allow", tool) {
+			t.Fatalf("Grok strict web policy for %s = %v", tool, arguments)
+		}
+	}
 	schema := argumentAfter(arguments, "--json-schema")
 	if strings.Contains(schema, `"not"`) || !strings.Contains(schema, `"findings"`) {
 		t.Fatalf("Grok schema projection = %s", schema)
@@ -171,12 +179,16 @@ func TestGrokReviewRejectsMalformedEnvelopeAndReview(t *testing.T) {
 
 	validReview := `{"findings":[],"overall_explanation":"No defects.","overall_confidence":0.95}`
 	for _, test := range []struct {
-		name   string
-		output string
+		name             string
+		output           string
+		incomplete       bool
+		wantMessage      string
+		forbiddenMessage string
 	}{
 		{name: "not JSON", output: "not-json"},
-		{name: "cancelled zero exit", output: `{"text":"","stopReason":"cancelled","sessionId":"s","requestId":"r","structuredOutput":null,"structuredOutputError":"model did not produce structured output"}`},
-		{name: "missing request identifier", output: `{"text":"` + escapeJSONString(validReview) + `","stopReason":"end_turn","sessionId":"","requestId":"r","structuredOutput":` + validReview + `}`},
+		{name: "cancelled zero exit", output: `{"text":"","stopReason":"cancelled","sessionId":"s","requestId":"r","structuredOutput":null,"structuredOutputError":"model did not produce structured output"}`, incomplete: true, wantMessage: "stop reason cancelled"},
+		{name: "unknown stop reason", output: `{"text":"","stopReason":"private-provider-detail","sessionId":"s","requestId":"r","structuredOutput":null}`, incomplete: true, wantMessage: "stop reason was not end_turn", forbiddenMessage: "private-provider-detail"},
+		{name: "missing request identifier", output: `{"text":"` + escapeJSONString(validReview) + `","stopReason":"end_turn","sessionId":"","requestId":"r","structuredOutput":` + validReview + `}`, incomplete: true, wantMessage: "missing request identifiers"},
 		{name: "missing structured output", output: `{"text":"{\"findings\":[]}","stopReason":"end_turn","sessionId":"s","requestId":"r","structuredOutput":null}`},
 		{name: "duplicate envelope key", output: `{"text":"x","text":"x","stopReason":"end_turn","sessionId":"s","requestId":"r","structuredOutput":{}}`},
 		{name: "invalid canonical review", output: grokEnvelope(`{"findings":[]}`)},
@@ -196,13 +208,19 @@ func TestGrokReviewRejectsMalformedEnvelopeAndReview(t *testing.T) {
 			}
 			expectedClass := protocol.FailureProtocol
 			expectedOutcome := protocol.AttemptMalformed
-			if test.name == "cancelled zero exit" || test.name == "missing request identifier" {
+			if test.incomplete {
 				expectedClass = protocol.FailureProvider
 				expectedOutcome = protocol.AttemptFailed
 			}
 			failure := assertProviderError(t, err, expectedClass)
 			if failure.Attempt == nil || failure.Attempt.Outcome != expectedOutcome {
 				t.Fatalf("attempt = %+v", failure.Attempt)
+			}
+			if test.wantMessage != "" && !strings.Contains(failure.Message, test.wantMessage) {
+				t.Fatalf("failure message = %q, want %q", failure.Message, test.wantMessage)
+			}
+			if test.forbiddenMessage != "" && strings.Contains(failure.Message, test.forbiddenMessage) {
+				t.Fatalf("failure message exposed private provider detail: %q", failure.Message)
 			}
 		})
 	}
@@ -408,6 +426,15 @@ func escapeJSONString(value string) string {
 		panic(err)
 	}
 	return string(encoded[1 : len(encoded)-1])
+}
+
+func containsArgumentPair(arguments []string, flag, value string) bool {
+	for index := 0; index+1 < len(arguments); index++ {
+		if arguments[index] == flag && arguments[index+1] == value {
+			return true
+		}
+	}
+	return false
 }
 
 func grokConfig(isolation protocol.Isolation, web bool, timeout time.Duration) config.Effective {
