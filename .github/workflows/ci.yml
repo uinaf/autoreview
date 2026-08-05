@@ -267,12 +267,17 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$SOPS_AGE_KEY"
+          payload=.release-vault/secrets/shared/uinaf-macos-release-signing.sops.json
+          ./scripts/verify-apple-payload.sh "$payload"
+          printf -v verify_command \
+            'unset SOPS_AGE_KEY; ./scripts/verify-apple-credentials.sh %q' \
+            "$EXPECTED_APPLE_TEAM_ID"
           sops exec-env --same-process \
-            .release-vault/secrets/shared/uinaf-macos-release-signing.sops.json \
-            './scripts/verify-apple-credentials.sh'
+            "$payload" \
+            "$verify_command"
           sops exec-env --same-process \
-            .release-vault/secrets/shared/uinaf-macos-release-signing.sops.json \
-            'goreleaser release --clean'
+            "$payload" \
+            'unset SOPS_AGE_KEY; exec goreleaser release --clean'
 
       - name: Verify checksums and signature
         if: steps.tag.outputs.present == 'true'

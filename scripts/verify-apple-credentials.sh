@@ -7,9 +7,11 @@ fail() {
   exit 1
 }
 
-[[ "${EXPECTED_APPLE_TEAM_ID:-}" =~ ^[A-Z0-9]{10}$ ]] ||
+expected_team_id="${1:-}"
+
+[[ "$expected_team_id" =~ ^[A-Z0-9]{10}$ ]] ||
   fail "expected Apple Team ID is missing or invalid"
-[[ "${APPLE_TEAM_ID:-}" == "$EXPECTED_APPLE_TEAM_ID" ]] ||
+[[ "${APPLE_TEAM_ID:-}" == "$expected_team_id" ]] ||
   fail "signing payload Apple Team ID does not match release policy"
 test -n "${APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64:-}" ||
   fail "signing payload certificate is missing"
@@ -63,5 +65,5 @@ security verify-cert -c "$certificate_pem" -p codeSign -q ||
   fail "Developer ID Application certificate is not valid for code signing"
 
 subject="$(openssl x509 -in "$certificate_pem" -noout -subject -nameopt RFC2253)"
-grep -q "OU=${EXPECTED_APPLE_TEAM_ID}" <<<"$subject" ||
+grep -q "OU=${expected_team_id}" <<<"$subject" ||
   fail "Developer ID certificate Team ID does not match release policy"
