@@ -109,6 +109,7 @@ run = '''
 set -e
 actionlint
 goreleaser check
+bash -n scripts/verify-apple-release.sh
 '''
 
 [tasks."release:snapshot"]
@@ -121,6 +122,7 @@ test "$(find dist -maxdepth 1 -name 'autoreview_*.tar.gz' -type f | wc -l | tr -
 for archive in dist/autoreview_*.tar.gz; do
   test "$(tar -tzf "$archive" | LC_ALL=C sort | tr '\n' ' ')" = "LICENSE README.md autoreview "
 done
+test -z "$(rg -n 'xattr|com\.apple\.quarantine' dist/homebrew/Casks/autoreview.rb)"
 (cd dist && shasum -a 256 -c checksums.txt)
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64) native_target='darwin_arm64' ;;

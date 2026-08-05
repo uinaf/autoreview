@@ -8,17 +8,20 @@ version; merges that contain no consumer-facing release type stop without a tag.
 
 Each CLI release contains:
 
-- macOS and Linux archives for amd64 and arm64;
+- macOS archives containing Developer ID signed and notarized binaries for
+  amd64 and arm64;
+- Linux archives for amd64 and arm64;
 - a SHA-256 `checksums.txt` manifest;
 - a keyless Cosign bundle for that manifest; and
 - GitHub build-provenance attestations for the archives, manifest, and bundle.
 
 The checksum signature protects every archive named by the manifest. GitHub
 attestations independently bind each uploaded artifact to the release workflow.
-The macOS archives are covered by the Sigstore-signed checksum manifest but are
-not Apple Developer ID signed or notarized. The Homebrew cask removes the
-quarantine attribute during install; users that do not accept that boundary
-should build from source with Go or wait for a future notarized distribution.
+The macOS binaries are signed with hardened runtime and a secure timestamp
+before Apple accepts their notarization submissions. Their Apple signing ID is
+`autoreview`; managed execution controls can combine that ID with the expected
+Apple Team ID. Apple creates tickets for standalone binaries but does not
+support stapling tickets to them, so Gatekeeper retrieves the ticket online.
 
 ## Verify a release
 
@@ -49,14 +52,23 @@ macOS/Linux verification and snapshot packaging pass. It mints a short-lived
 `uinaf-releaser` installation token explicitly scoped to `autoreview` and
 `homebrew-tap` with Contents write permission.
 
+Apple release material remains SOPS-encrypted in the private signing vault. The
+release Environment holds only a read-only vault deploy key and the dedicated
+release workload's age identity. The workflow checks out one payload at the
+commit pinned by `UINAF_VAULT_SIGNING_REF` and exposes its values only to the
+GoReleaser process. Pull requests cannot access the vault or either bootstrap
+secret.
+
 Semantic Release owns version selection, release notes, the Git tag, and the
-initial GitHub Release. GoReleaser appends binaries, the checksum manifest, and
-the Sigstore bundle, then updates the Homebrew cask. No release commit is pushed
-to `main`.
+initial GitHub Release. GoReleaser Developer ID signs both macOS binaries,
+waits for Apple to accept both notarization submissions, appends all archives,
+the checksum manifest, and the Sigstore bundle, then updates the Homebrew cask.
+No release commit is pushed to `main`.
 
 If publication fails after the tag is created, rerunning the failed workflow is
 safe: a release tag at `HEAD` resumes GoReleaser publication without choosing a
-new version. Never delete a published tag merely to retry a partial release.
+new version. This includes Apple service failures before artifact publication.
+Never delete a published tag merely to retry a partial release.
 
 ## Version tracks
 

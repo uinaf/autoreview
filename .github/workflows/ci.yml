@@ -211,19 +211,62 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish release artifacts
+      - name: Install GoReleaser
         if: steps.tag.outputs.present == 'true'
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
           version: v2.17.1
-          args: release --clean
+          install-only: true
+
+      - name: Validate signing bootstrap
+        if: steps.tag.outputs.present == 'true'
+        shell: bash
+        env:
+          UINAF_RELEASE_AGE_KEY: ${{ secrets.UINAF_RELEASE_AGE_KEY }}
+          UINAF_VAULT_DEPLOY_KEY: ${{ secrets.UINAF_VAULT_DEPLOY_KEY }}
+          UINAF_VAULT_SIGNING_REF: ${{ vars.UINAF_VAULT_SIGNING_REF }}
+        run: |
+          set -euo pipefail
+          test -n "$UINAF_RELEASE_AGE_KEY"
+          test -n "$UINAF_VAULT_DEPLOY_KEY"
+          [[ "$UINAF_VAULT_SIGNING_REF" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Check out encrypted signing payload
+        if: steps.tag.outputs.present == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: uinaf/vault
+          ref: ${{ vars.UINAF_VAULT_SIGNING_REF }}
+          path: .release-vault
+          fetch-depth: 1
+          persist-credentials: false
+          ssh-key: ${{ secrets.UINAF_VAULT_DEPLOY_KEY }}
+          sparse-checkout: secrets/shared/uinaf-macos-release-signing.sops.json
+          sparse-checkout-cone-mode: false
+
+      - name: Install SOPS
+        if: steps.tag.outputs.present == 'true'
+        uses: mdgreenwald/mozilla-sops-action@55177c1ff20a2b396280e4c5f53c32b69f0c1e40 # v2.1.1
+        with:
+          version: v3.13.3
+
+      - name: Publish release artifacts
+        if: steps.tag.outputs.present == 'true'
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ steps.release-bot.outputs.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.release-bot.outputs.token }}
           GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
           RELEASE_BOT_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
           RELEASE_BOT_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
+          SOPS_AGE_KEY: ${{ secrets.UINAF_RELEASE_AGE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SOPS_AGE_KEY"
+          sops exec-env --same-process \
+            .release-vault/secrets/shared/uinaf-macos-release-signing.sops.json \
+            'goreleaser release --clean'
 
       - name: Verify checksums and signature
         if: steps.tag.outputs.present == 'true'
@@ -236,6 +279,17 @@ jobs:
             --certificate-identity "https://github.com/uinaf/autoreview/.github/workflows/ci.yml@refs/heads/main" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             dist/checksums.txt
+
+      - name: Verify Apple signatures
+        if: steps.tag.outputs.present == 'true'
+        env:
+          GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
+          SOPS_AGE_KEY: ${{ secrets.UINAF_RELEASE_AGE_KEY }}
+        run: |
+          set -euo pipefail
+          sops exec-env --same-process \
+            .release-vault/secrets/shared/uinaf-macos-release-signing.sops.json \
+            './scripts/verify-apple-release.sh'
 
       - name: Attest build provenance
         if: steps.tag.outputs.present == 'true'
