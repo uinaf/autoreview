@@ -36,11 +36,11 @@ certificate="$verify_dir/developer-id.p12"
 certificate_pem="$verify_dir/developer-id.pem"
 notary_key="$verify_dir/notary-api-key.p8"
 if ! printf '%s' "$APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64" |
-  base64 --decode >"$certificate"; then
+  /usr/bin/base64 -D >"$certificate"; then
   fail "signing payload certificate is not valid base64"
 fi
 if ! printf '%s' "$APPLE_NOTARY_API_KEY_P8_BASE64" |
-  base64 --decode >"$notary_key"; then
+  /usr/bin/base64 -D >"$notary_key"; then
   fail "signing payload notarization private key is not valid base64"
 fi
 openssl pkey -in "$notary_key" -check -noout >/dev/null 2>&1 ||
