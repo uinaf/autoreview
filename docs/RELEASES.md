@@ -57,7 +57,9 @@ release Environment holds only a read-only vault deploy key and the dedicated
 release workload's age identity. The workflow checks out one payload at the
 commit pinned by `UINAF_VAULT_SIGNING_REF` and exposes its values only to the
 GoReleaser process. Pull requests cannot access the vault or either bootstrap
-secret.
+secret. Before publication, the workflow independently pins the expected Apple
+Team ID in `UINAF_EXPECTED_APPLE_TEAM_ID` and rejects a payload or certificate
+for any other team.
 
 Semantic Release owns version selection, release notes, the Git tag, and the
 initial GitHub Release. GoReleaser Developer ID signs both macOS binaries,

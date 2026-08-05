@@ -225,11 +225,13 @@ jobs:
         env:
           UINAF_RELEASE_AGE_KEY: ${{ secrets.UINAF_RELEASE_AGE_KEY }}
           UINAF_VAULT_DEPLOY_KEY: ${{ secrets.UINAF_VAULT_DEPLOY_KEY }}
+          UINAF_EXPECTED_APPLE_TEAM_ID: ${{ vars.UINAF_EXPECTED_APPLE_TEAM_ID }}
           UINAF_VAULT_SIGNING_REF: ${{ vars.UINAF_VAULT_SIGNING_REF }}
         run: |
           set -euo pipefail
           test -n "$UINAF_RELEASE_AGE_KEY"
           test -n "$UINAF_VAULT_DEPLOY_KEY"
+          [[ "$UINAF_EXPECTED_APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
           [[ "$UINAF_VAULT_SIGNING_REF" =~ ^[0-9a-f]{40}$ ]]
 
       - name: Check out encrypted signing payload
@@ -260,10 +262,14 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
           RELEASE_BOT_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
           RELEASE_BOT_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
+          EXPECTED_APPLE_TEAM_ID: ${{ vars.UINAF_EXPECTED_APPLE_TEAM_ID }}
           SOPS_AGE_KEY: ${{ secrets.UINAF_RELEASE_AGE_KEY }}
         run: |
           set -euo pipefail
           test -n "$SOPS_AGE_KEY"
+          sops exec-env --same-process \
+            .release-vault/secrets/shared/uinaf-macos-release-signing.sops.json \
+            './scripts/verify-apple-credentials.sh'
           sops exec-env --same-process \
             .release-vault/secrets/shared/uinaf-macos-release-signing.sops.json \
             'goreleaser release --clean'
@@ -283,13 +289,9 @@ jobs:
       - name: Verify Apple signatures
         if: steps.tag.outputs.present == 'true'
         env:
+          EXPECTED_APPLE_TEAM_ID: ${{ vars.UINAF_EXPECTED_APPLE_TEAM_ID }}
           GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
-          SOPS_AGE_KEY: ${{ secrets.UINAF_RELEASE_AGE_KEY }}
-        run: |
-          set -euo pipefail
-          sops exec-env --same-process \
-            .release-vault/secrets/shared/uinaf-macos-release-signing.sops.json \
-            './scripts/verify-apple-release.sh'
+        run: ./scripts/verify-apple-release.sh
 
       - name: Attest build provenance
         if: steps.tag.outputs.present == 'true'
