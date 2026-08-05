@@ -219,65 +219,25 @@ jobs:
           version: v2.17.1
           install-only: true
 
-      - name: Validate signing bootstrap
-        if: steps.tag.outputs.present == 'true'
-        shell: bash
-        env:
-          UINAF_RELEASE_AGE_KEY: ${{ secrets.UINAF_RELEASE_AGE_KEY }}
-          UINAF_VAULT_DEPLOY_KEY: ${{ secrets.UINAF_VAULT_DEPLOY_KEY }}
-          UINAF_EXPECTED_APPLE_TEAM_ID: ${{ vars.UINAF_EXPECTED_APPLE_TEAM_ID }}
-          UINAF_VAULT_SIGNING_REF: ${{ vars.UINAF_VAULT_SIGNING_REF }}
-        run: |
-          set -euo pipefail
-          test -n "$UINAF_RELEASE_AGE_KEY"
-          test -n "$UINAF_VAULT_DEPLOY_KEY"
-          [[ "$UINAF_EXPECTED_APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
-          [[ "$UINAF_VAULT_SIGNING_REF" =~ ^[0-9a-f]{40}$ ]]
-
-      - name: Check out encrypted signing payload
-        if: steps.tag.outputs.present == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: uinaf/vault
-          ref: ${{ vars.UINAF_VAULT_SIGNING_REF }}
-          path: .release-vault
-          fetch-depth: 1
-          persist-credentials: false
-          ssh-key: ${{ secrets.UINAF_VAULT_DEPLOY_KEY }}
-          sparse-checkout: secrets/shared/uinaf-macos-release-signing.sops.json
-          sparse-checkout-cone-mode: false
-
-      - name: Install SOPS
-        if: steps.tag.outputs.present == 'true'
-        uses: mdgreenwald/mozilla-sops-action@55177c1ff20a2b396280e4c5f53c32b69f0c1e40 # v2.1.1
-        with:
-          version: v3.13.3
-
       - name: Publish release artifacts
         if: steps.tag.outputs.present == 'true'
         shell: bash
         env:
+          APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARY_API_ISSUER_ID: ${{ vars.APPLE_NOTARY_API_ISSUER_ID }}
+          APPLE_NOTARY_API_KEY_ID: ${{ vars.APPLE_NOTARY_API_KEY_ID }}
+          APPLE_NOTARY_API_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_API_KEY_P8_BASE64 }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           GITHUB_TOKEN: ${{ steps.release-bot.outputs.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.release-bot.outputs.token }}
           GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
           RELEASE_BOT_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
           RELEASE_BOT_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
-          EXPECTED_APPLE_TEAM_ID: ${{ vars.UINAF_EXPECTED_APPLE_TEAM_ID }}
-          SOPS_AGE_KEY: ${{ secrets.UINAF_RELEASE_AGE_KEY }}
         run: |
           set -euo pipefail
-          test -n "$SOPS_AGE_KEY"
-          payload=.release-vault/secrets/shared/uinaf-macos-release-signing.sops.json
-          ./scripts/verify-apple-payload.sh "$payload"
-          printf -v verify_command \
-            'unset SOPS_AGE_KEY; ./scripts/verify-apple-credentials.sh %q' \
-            "$EXPECTED_APPLE_TEAM_ID"
-          sops exec-env --same-process \
-            "$payload" \
-            "$verify_command"
-          sops exec-env --same-process \
-            "$payload" \
-            'unset SOPS_AGE_KEY; exec goreleaser release --clean'
+          ./scripts/verify-apple-credentials.sh "$APPLE_TEAM_ID"
+          exec goreleaser release --clean
 
       - name: Verify checksums and signature
         if: steps.tag.outputs.present == 'true'
@@ -294,7 +254,7 @@ jobs:
       - name: Verify Apple signatures
         if: steps.tag.outputs.present == 'true'
         env:
-          EXPECTED_APPLE_TEAM_ID: ${{ vars.UINAF_EXPECTED_APPLE_TEAM_ID }}
+          EXPECTED_APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
         run: ./scripts/verify-apple-release.sh
 

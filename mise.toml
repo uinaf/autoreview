@@ -110,7 +110,6 @@ set -e
 actionlint
 goreleaser check
 bash -n scripts/verify-apple-credentials.sh
-bash -n scripts/verify-apple-payload.sh
 bash -n scripts/verify-apple-release.sh
 '''
 

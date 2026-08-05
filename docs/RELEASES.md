@@ -52,16 +52,13 @@ macOS/Linux verification and snapshot packaging pass. It mints a short-lived
 `uinaf-releaser` installation token explicitly scoped to `autoreview` and
 `homebrew-tap` with Contents write permission.
 
-Apple release material remains SOPS-encrypted in the private signing vault. The
-release Environment holds only a read-only vault deploy key and the dedicated
-release workload's age identity. The workflow checks out one payload at the
-commit pinned by `UINAF_VAULT_SIGNING_REF`, rejects keys outside the exact Apple
-credential allowlist, and exposes the decrypted values only to the credential
-verifier and GoReleaser process boundaries. The age identity is removed before
-either child process runs. Pull requests cannot access the vault or either
-bootstrap secret. Before publication, the workflow passes the expected Apple
-Team ID from `UINAF_EXPECTED_APPLE_TEAM_ID` as verifier input outside the
-decrypted environment and rejects a payload or certificate for any other team.
+The protected `release` Environment stores the Developer ID certificate,
+certificate password, and notary private key as secrets. It stores the Apple
+issuer, key, and Team IDs as environment variables. GitHub injects them only
+into the main-only publication step; pull requests cannot access them. Before
+publication, the credential verifier checks the certificate trust, private key,
+and identifiers and rejects a certificate outside the Team ID pinned by
+`APPLE_TEAM_ID`.
 
 Semantic Release owns version selection, release notes, the Git tag, and the
 initial GitHub Release. GoReleaser Developer ID signs both macOS binaries,
