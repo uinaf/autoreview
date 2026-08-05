@@ -54,11 +54,12 @@ macOS/Linux verification and snapshot packaging pass. It mints a short-lived
 
 The protected `release` Environment stores the Developer ID certificate,
 certificate password, and notary private key as secrets. It stores the Apple
-issuer, key, and Team IDs as environment variables. GitHub injects them only
-into the main-only publication step; pull requests cannot access them. Before
-publication, the credential verifier checks the certificate trust, private key,
-and identifiers and rejects a certificate outside the Team ID pinned by
-`APPLE_TEAM_ID`.
+issuer, key, and Team IDs as environment variables. GitHub injects the three
+secrets only into the main-only publication step; pull requests cannot access
+them. The identifier variables also enter that step, and the Team ID is reused
+by post-publication signature verification. Before publication, the credential
+verifier checks the certificate trust, private key, and identifiers and rejects
+a certificate outside the Team ID pinned by `APPLE_TEAM_ID`.
 
 Semantic Release owns version selection, release notes, the Git tag, and the
 initial GitHub Release. GoReleaser Developer ID signs both macOS binaries,

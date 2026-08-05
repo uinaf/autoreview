@@ -43,7 +43,7 @@ if ! printf '%s' "$APPLE_NOTARY_API_KEY_P8_BASE64" |
   /usr/bin/base64 -D >"$notary_key"; then
   fail "Apple notarization private key is not valid base64"
 fi
-openssl pkey -in "$notary_key" -check -noout >/dev/null 2>&1 ||
+/usr/bin/openssl pkey -in "$notary_key" -noout >/dev/null 2>&1 ||
   fail "Apple notarization private key is invalid"
 
 security create-keychain -p "$keychain_password" "$keychain" ||
@@ -62,6 +62,6 @@ fi
 security verify-cert -c "$certificate_pem" -p codeSign -q ||
   fail "Developer ID Application certificate is not valid for code signing"
 
-subject="$(openssl x509 -in "$certificate_pem" -noout -subject -nameopt RFC2253)"
+subject="$(/usr/bin/openssl x509 -in "$certificate_pem" -noout -subject -nameopt RFC2253)"
 grep -q "OU=${expected_team_id}" <<<"$subject" ||
   fail "Developer ID certificate Team ID does not match release policy"
