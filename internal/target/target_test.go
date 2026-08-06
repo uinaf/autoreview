@@ -196,11 +196,20 @@ func TestFreezeIncludesTrackedSymlinks(t *testing.T) {
 	})
 
 	t.Run("local", func(t *testing.T) {
-		repository := committedRepository(t)
-		if err := os.Symlink("file.txt", filepath.Join(repository, "alias")); err != nil {
+		repository := newRepository(t)
+		writeFile(t, repository, "target-a.txt", "a\n")
+		writeFile(t, repository, "target-b.txt", "b\n")
+		if err := os.Symlink("target-a.txt", filepath.Join(repository, "alias")); err != nil {
 			t.Fatal(err)
 		}
-		gitCommand(t, repository, "add", "alias")
+		gitCommand(t, repository, "add", ".")
+		gitCommand(t, repository, "commit", "-m", "base")
+		if err := os.Remove(filepath.Join(repository, "alias")); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink("target-b.txt", filepath.Join(repository, "alias")); err != nil {
+			t.Fatal(err)
+		}
 
 		bundle, err := newCollector(t, &recordingScanner{}).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal})
 		if err != nil {
@@ -209,7 +218,7 @@ func TestFreezeIncludesTrackedSymlinks(t *testing.T) {
 		if !equalStrings(targetPaths(bundle.Target()), []string{"alias"}) {
 			t.Fatalf("paths = %v", targetPaths(bundle.Target()))
 		}
-		if !strings.Contains(bundle.Payload(), "file.txt") {
+		if !strings.Contains(bundle.Payload(), "target-b.txt") {
 			t.Fatal("frozen payload omitted symlink target")
 		}
 	})
