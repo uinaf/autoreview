@@ -165,6 +165,76 @@ func TestFreezeBranchUsesMergeBase(t *testing.T) {
 	}
 }
 
+func TestFreezeIncludesTrackedSymlinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("branch", func(t *testing.T) {
+		repository := newRepository(t)
+		writeFile(t, repository, "skills/example/SKILL.md", "skill\n")
+		gitCommand(t, repository, "add", ".")
+		gitCommand(t, repository, "commit", "-m", "base")
+		gitCommand(t, repository, "switch", "-c", "feature")
+		if err := os.MkdirAll(filepath.Join(repository, ".claude", "skills"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink("../../skills/example", filepath.Join(repository, ".claude", "skills", "example")); err != nil {
+			t.Fatal(err)
+		}
+		gitCommand(t, repository, "add", ".")
+		gitCommand(t, repository, "commit", "-m", "track skill symlink")
+
+		bundle, err := newCollector(t, &recordingScanner{}).Freeze(context.Background(), repository, Request{Mode: protocol.TargetBranch, Base: "main"})
+		if err != nil {
+			t.Fatalf("Freeze() error = %v", err)
+		}
+		if !equalStrings(targetPaths(bundle.Target()), []string{".claude/skills/example"}) {
+			t.Fatalf("paths = %v", targetPaths(bundle.Target()))
+		}
+		if !strings.Contains(bundle.Payload(), "../../skills/example") {
+			t.Fatal("frozen payload omitted symlink target")
+		}
+	})
+
+	t.Run("local", func(t *testing.T) {
+		repository := newRepository(t)
+		writeFile(t, repository, "target-a.txt", "a\n")
+		writeFile(t, repository, "target-b.txt", "b\n")
+		if err := os.Symlink("target-a.txt", filepath.Join(repository, "alias")); err != nil {
+			t.Fatal(err)
+		}
+		gitCommand(t, repository, "add", ".")
+		gitCommand(t, repository, "commit", "-m", "base")
+		if err := os.Remove(filepath.Join(repository, "alias")); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink("target-b.txt", filepath.Join(repository, "alias")); err != nil {
+			t.Fatal(err)
+		}
+
+		bundle, err := newCollector(t, &recordingScanner{}).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal})
+		if err != nil {
+			t.Fatalf("Freeze() error = %v", err)
+		}
+		if !equalStrings(targetPaths(bundle.Target()), []string{"alias"}) {
+			t.Fatalf("paths = %v", targetPaths(bundle.Target()))
+		}
+		if !strings.Contains(bundle.Payload(), "target-b.txt") {
+			t.Fatal("frozen payload omitted symlink target")
+		}
+	})
+}
+
+func TestFreezeRejectsGitlink(t *testing.T) {
+	t.Parallel()
+
+	repository := committedRepository(t)
+	gitCommand(t, repository, "update-index", "--add", "--cacheinfo", "160000,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,vendor")
+	_, err := newCollector(t, &recordingScanner{}).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal})
+	if err == nil || !strings.Contains(err.Error(), "gitlink input") {
+		t.Fatalf("Freeze() error = %v", err)
+	}
+}
+
 func TestFreezeCommitAndRejectMergeCommit(t *testing.T) {
 	t.Parallel()
 

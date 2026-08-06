@@ -114,7 +114,7 @@ func (collector *Collector) validateTrackedWorktree(ctx context.Context, root st
 		if err := protocolPath(path); err != nil {
 			return fmt.Errorf("tracked path %q: %w", path, err)
 		}
-		if err := validateRegularOrMissingFile(root, path); err != nil {
+		if err := validateTrackedWorktreePath(root, path); err != nil {
 			return fmt.Errorf("inspect tracked path %q: %w", path, err)
 		}
 		return nil
@@ -463,8 +463,8 @@ func (collector *Collector) inspectRawModes(ctx context.Context, root string, pl
 			oldMode := strings.TrimPrefix(header[0], ":")
 			newMode := header[1]
 			path := string(record)
-			if specialGitMode(oldMode) || specialGitMode(newMode) {
-				return fmt.Errorf("symlink or gitlink input %q is unsupported", path)
+			if gitlinkMode(oldMode) || gitlinkMode(newMode) {
+				return fmt.Errorf("gitlink input %q is unsupported", path)
 			}
 			if newMode == "000000" {
 				deleted = append(deleted, deletedBlob{path: path, oid: header[2]})
@@ -499,8 +499,8 @@ func diffCommands(plan *targetPlan, format ...string) [][]string {
 	return [][]string{append(arguments, "--")}
 }
 
-func specialGitMode(mode string) bool {
-	return mode == "120000" || mode == "160000"
+func gitlinkMode(mode string) bool {
+	return mode == "160000"
 }
 
 func (collector *Collector) untrackedFiles(ctx context.Context, root string, plan *targetPlan, budget *byteBudget) (map[string][]byte, error) {
