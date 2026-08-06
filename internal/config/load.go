@@ -125,6 +125,7 @@ func Load(ctx context.Context, options Options) (Effective, error) {
 	if err := applyOverrides(&effective, options.Overrides); err != nil {
 		return Effective{}, err
 	}
+	applyProviderDefaults(&effective)
 	if err := effective.Validate(); err != nil {
 		return Effective{}, err
 	}
@@ -305,8 +306,14 @@ func applyOverrides(effective *Effective, overrides Overrides) error {
 }
 
 func applyRaw(effective *Effective, raw rawConfig, source Source, allowCapabilities bool) error {
-	if err := validateRaw(raw, source, allowCapabilities); err != nil {
+	if err := validateRaw(raw, source); err != nil {
 		return err
+	}
+	if raw.Isolation.set && protocol.Isolation(raw.Isolation.value) == protocol.IsolationNative && !allowCapabilities && effective.Isolation.Value == protocol.IsolationStrict {
+		return fmt.Errorf("%s config cannot weaken strict isolation", source)
+	}
+	if raw.WebAccess.set && raw.WebAccess.value && !allowCapabilities {
+		return fmt.Errorf("%s config cannot enable web access", source)
 	}
 	if raw.Engine.set {
 		effective.Engine = Value[protocol.ProviderName]{Value: protocol.ProviderName(raw.Engine.value), Source: source}
@@ -340,10 +347,17 @@ func applyRaw(effective *Effective, raw rawConfig, source Source, allowCapabilit
 	return nil
 }
 
-func validateRaw(raw rawConfig, source Source, allowCapabilities bool) error {
+func applyProviderDefaults(effective *Effective) {
+	if effective.Engine.Value == protocol.ProviderCursor && effective.Engine.Source == SourceFlag && effective.WebAccess.Source == SourceDefault {
+		effective.WebAccess.Value = true
+		effective.WebAccess.Source = SourceFlag
+	}
+}
+
+func validateRaw(raw rawConfig, source Source) error {
 	if raw.Engine.set {
 		switch protocol.ProviderName(raw.Engine.value) {
-		case protocol.ProviderCodex, protocol.ProviderClaude, protocol.ProviderCursor:
+		case protocol.ProviderCodex, protocol.ProviderClaude, protocol.ProviderCursor, protocol.ProviderGrok:
 		default:
 			return fmt.Errorf("%s engine: invalid value %q", source, raw.Engine.value)
 		}
@@ -380,12 +394,6 @@ func validateRaw(raw rawConfig, source Source, allowCapabilities bool) error {
 		if isolation != protocol.IsolationStrict && isolation != protocol.IsolationNative {
 			return fmt.Errorf("%s isolation: invalid value %q", source, raw.Isolation.value)
 		}
-		if isolation == protocol.IsolationNative && !allowCapabilities {
-			return fmt.Errorf("%s config cannot enable native isolation", source)
-		}
-	}
-	if raw.WebAccess.set && raw.WebAccess.value && !allowCapabilities {
-		return fmt.Errorf("%s config cannot enable web access", source)
 	}
 	return nil
 }

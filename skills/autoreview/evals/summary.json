@@ -13,7 +13,7 @@
   "scenarios": [
     {"id": "scenario-0", "capability": "Provider choice", "feasible": true, "reason": "A written closeout plan exposes provider selection and fallback behavior."},
     {"id": "scenario-1", "capability": "Configuration precedence", "feasible": true, "reason": "A diagnostic plan can be graded from supplied configuration sources."},
-    {"id": "scenario-2", "capability": "Isolation authorization", "feasible": true, "reason": "A written response exposes whether native isolation is authorized safely."},
+    {"id": "scenario-2", "capability": "Session authentication recovery", "feasible": true, "reason": "A written response exposes whether strict API-key requirements and the native session-login path are handled safely."},
     {"id": "scenario-3", "capability": "Clean result closeout", "feasible": true, "reason": "A supplied canonical clean result supports a deterministic final report."},
     {"id": "scenario-4", "capability": "Finding validation loop", "feasible": true, "reason": "Supplied findings and source invariants support accept and reject decisions."},
     {"id": "scenario-5", "capability": "Provider failure handling", "feasible": true, "reason": "A supplied authentication failure exposes retry and fallback decisions."},

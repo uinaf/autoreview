@@ -1,14 +1,14 @@
 {
-  "context": "Tests whether the agent chooses exactly one suitable installed provider without a fixed default, preserves strict no-web capabilities, constructs the branch review command with the task contract, and defines evidence-based completion without fallback or panels.",
+  "context": "Tests whether the agent chooses exactly one suitable installed provider without a fixed engine, applies native and provider-specific web defaults, constructs the branch review command with the task contract, and defines evidence-based completion without fallback or panels.",
   "type": "weighted_checklist",
   "checklist": [
     {"name": "Builder proof acknowledged", "description": "closeout.md states that the already-passed test suite is the builder prerequisite rather than treating autoreview as builder verification", "max_score": 10},
     {"name": "Task contract assembled", "description": "closeout.md includes an objective or acceptance-criteria contract covering stable JSON and SIGINT child termination", "max_score": 10},
-    {"name": "Exactly one provider", "description": "The planned command selects exactly one of codex or claude and does not invoke multiple providers", "max_score": 10},
+    {"name": "Exactly one provider", "description": "The planned command selects exactly one installed provider and does not invoke multiple providers", "max_score": 10},
     {"name": "Provider choice explained", "description": "The document states why the chosen installed provider fits this review instead of claiming an automatic Codex default", "max_score": 10},
-    {"name": "No Cursor without web", "description": "The plan does not choose Cursor because web access has not been authorized", "max_score": 10},
-    {"name": "Strict isolation preserved", "description": "The command keeps strict isolation by default and does not add --isolation native", "max_score": 10},
-    {"name": "Web remains disabled", "description": "The command does not add --web-access and explicitly preserves web-off policy", "max_score": 10},
+    {"name": "Native default understood", "description": "The plan recognizes that native isolation preserves normal provider login while using the empty frozen-bundle workspace", "max_score": 10},
+    {"name": "Provider web default understood", "description": "The plan keeps web off for Codex, Claude, or Grok, or records Cursor's implicit web capability if Cursor is selected", "max_score": 10},
+    {"name": "No capability prompt", "description": "The plan does not ask for separate permission to use the documented native or Cursor web defaults", "max_score": 10},
     {"name": "Correct branch target", "description": "The exact command uses review --mode branch --base main or an equivalent resolved main reference", "max_score": 10},
     {"name": "Prompt passed", "description": "The command passes the distilled task contract using --prompt", "max_score": 10},
     {"name": "No fallback or panel", "description": "Failure handling reports the blocker without automatically switching provider, running a panel, or claiming consensus", "max_score": 10}

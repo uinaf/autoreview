@@ -516,6 +516,21 @@ func TestReviewValidateCountsUnicodeCharacters(t *testing.T) {
 	}
 }
 
+func TestReviewValidateRejectsShortOverallExplanation(t *testing.T) {
+	t.Parallel()
+
+	for _, explanation := range []string{"I", "         I"} {
+		review := Review{Findings: []Finding{}, OverallExplanation: explanation, OverallConfidence: 1}
+		if err := review.Validate(); err == nil || !strings.Contains(err.Error(), "at least 10 characters") {
+			t.Errorf("Validate() error = %v for %q", err, explanation)
+		}
+	}
+	valid := Review{Findings: []Finding{}, OverallExplanation: "No issues.", OverallConfidence: 1}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("Validate() rejected minimum explanation: %v", err)
+	}
+}
+
 func TestValidatedFixturesMarshalRoundTrip(t *testing.T) {
 	t.Parallel()
 

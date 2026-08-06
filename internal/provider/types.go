@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ const (
 	DefaultCodexModel  = "gpt-5.6-sol"
 	DefaultClaudeModel = "claude-opus-5"
 	DefaultCursorModel = "cursor-grok-4.5-high-fast"
+	DefaultGrokModel   = "grok-4.5"
 )
 
 type Request struct {
@@ -66,6 +68,58 @@ type Error struct {
 	Class   protocol.FailureClass
 	Message string
 	Attempt *protocol.Attempt
+}
+
+func strictCredentialFailure(effective config.Effective, provider protocol.ProviderName, environment []string) *Error {
+	if effective.Isolation.Value != protocol.IsolationStrict {
+		return nil
+	}
+	label, names := providerCredentialNames(provider)
+	if len(names) == 0 {
+		return newFailure(
+			protocol.FailureAuth,
+			fmt.Sprintf("%s strict isolation has no configured credential contract; use --isolation native or update the provider adapter", label),
+			environment,
+			nil,
+		)
+	}
+	for _, name := range names {
+		if environmentValue(environment, name) != "" {
+			return nil
+		}
+	}
+	return newFailure(
+		protocol.FailureAuth,
+		fmt.Sprintf("%s strict isolation requires %s; set a supported API key or use --isolation native for session-backed login", label, strings.Join(names, " or ")),
+		environment,
+		nil,
+	)
+}
+
+func strictCredentialRecovery(effective config.Effective, provider protocol.ProviderName) string {
+	if effective.Isolation.Value != protocol.IsolationStrict {
+		return ""
+	}
+	_, names := providerCredentialNames(provider)
+	if len(names) == 0 {
+		return "use --isolation native or update the provider adapter credential contract"
+	}
+	return fmt.Sprintf("verify %s or use --isolation native for session-backed login", strings.Join(names, " or "))
+}
+
+func providerCredentialNames(name protocol.ProviderName) (string, []string) {
+	switch name {
+	case protocol.ProviderCodex:
+		return "Codex", []string{"CODEX_API_KEY", "OPENAI_API_KEY"}
+	case protocol.ProviderClaude:
+		return "Claude", []string{"ANTHROPIC_API_KEY"}
+	case protocol.ProviderCursor:
+		return "Cursor", []string{"CURSOR_API_KEY"}
+	case protocol.ProviderGrok:
+		return "Grok", []string{"XAI_API_KEY"}
+	default:
+		return string(name), nil
+	}
 }
 
 func (failure *Error) Error() string {

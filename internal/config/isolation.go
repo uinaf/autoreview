@@ -46,6 +46,7 @@ func PrepareRuntime(effective Effective, parentEnvironment []string) (*Runtime, 
 		{name: "CODEX_HOME", relative: "codex"},
 		{name: "CLAUDE_CONFIG_DIR", relative: "claude"},
 		{name: "CURSOR_CONFIG_DIR", relative: "cursor"},
+		{name: "GROK_HOME", relative: "grok"},
 	}
 	for _, directory := range directories {
 		path := filepath.Join(root, directory.relative)
@@ -69,6 +70,8 @@ func PrepareRuntime(effective Effective, parentEnvironment []string) (*Runtime, 
 		allowed["ANTHROPIC_API_KEY"] = struct{}{}
 	case protocol.ProviderCursor:
 		allowed["CURSOR_API_KEY"] = struct{}{}
+	case protocol.ProviderGrok:
+		allowed["XAI_API_KEY"] = struct{}{}
 	}
 	for _, entry := range parentEnvironment {
 		name, _, _ := strings.Cut(entry, "=")

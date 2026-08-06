@@ -65,6 +65,41 @@ func TestFixturesValidateAgainstSchemas(t *testing.T) {
 	}
 }
 
+func TestResultSchemaAcceptsGrokProvider(t *testing.T) {
+	t.Parallel()
+
+	schema := compileSchema(t, "result-v1.schema.json")
+	report := findingsInstance(t)
+	provider := report["metadata"].(map[string]any)["provider"].(map[string]any)
+	provider["name"] = "grok"
+	provider["model"] = "grok-4.5"
+	provider["version"] = "0.2.118"
+	if err := schema.Validate(report); err != nil {
+		t.Fatalf("result schema rejected Grok provider: %v", err)
+	}
+}
+
+func TestSchemasRejectShortOverallExplanation(t *testing.T) {
+	t.Parallel()
+
+	reviewSchema := compileSchema(t, "review-v1.schema.json")
+	resultSchema := compileSchema(t, "result-v1.schema.json")
+	report := findingsInstance(t)
+	review := report["review"].(map[string]any)
+	review["overall_explanation"] = "I"
+	if err := reviewSchema.Validate(review); err == nil {
+		t.Fatal("review schema accepted one-character overall_explanation")
+	}
+	if err := resultSchema.Validate(report); err == nil {
+		t.Fatal("result schema accepted one-character overall_explanation")
+	}
+
+	review["overall_explanation"] = "No issues."
+	if err := reviewSchema.Validate(review); err != nil {
+		t.Fatalf("review schema rejected minimum overall_explanation: %v", err)
+	}
+}
+
 func TestSchemasRejectUnsafePaths(t *testing.T) {
 	t.Parallel()
 
@@ -160,6 +195,44 @@ func TestClaudeReviewSchemaProjectsUnsupportedPathKeyword(t *testing.T) {
 	}
 	if relativePath["type"] != "string" || relativePath["pattern"] != `\S` {
 		t.Fatalf("Claude relative_path constraints = %+v", relativePath)
+	}
+}
+
+func TestGrokReviewSchemaProjectsUnsupportedKeywords(t *testing.T) {
+	t.Parallel()
+
+	data, err := contractschema.GrokReviewV1()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	definitions := requireObject(t, document["$defs"], "$defs")
+	relativePath := requireObject(t, definitions["relative_path"], "$defs.relative_path")
+	properties := requireObject(t, document["properties"], "properties")
+	overallExplanation := requireObject(t, properties["overall_explanation"], "properties.overall_explanation")
+	finding := requireObject(t, definitions["finding"], "$defs.finding")
+	findingProperties := requireObject(t, finding["properties"], "$defs.finding.properties")
+	if _, ok := document["$schema"]; ok {
+		t.Fatal("Grok schema retained unsupported $schema URI")
+	}
+	if _, ok := relativePath["not"]; ok {
+		t.Fatal("Grok schema retained unsupported not keyword")
+	}
+	for path, constraint := range map[string]map[string]any{
+		"properties.overall_explanation": overallExplanation,
+		"$defs.relative_path":            relativePath,
+		"$defs.finding.properties.title": requireObject(t, findingProperties["title"], "$defs.finding.properties.title"),
+		"$defs.finding.properties.body":  requireObject(t, findingProperties["body"], "$defs.finding.properties.body"),
+	} {
+		if _, ok := constraint["pattern"]; ok {
+			t.Fatalf("Grok schema retained unsupported non-whitespace pattern at %s", path)
+		}
+		if constraint["type"] != "string" || constraint["minLength"] == nil || constraint["maxLength"] == nil {
+			t.Fatalf("Grok string constraints at %s = %+v", path, constraint)
+		}
 	}
 }
 

@@ -81,6 +81,9 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 	if err != nil {
 		return Result{}, newFailure(protocol.FailureCapability, err.Error(), cursor.environment, nil)
 	}
+	if failure := strictCredentialFailure(request.Config, protocol.ProviderCursor, cursor.environment); failure != nil {
+		return Result{}, failure
+	}
 	runtime, err := config.PrepareRuntime(request.Config, cursor.environment)
 	if err != nil {
 		return Result{}, newFailure(protocol.FailureInternal, fmt.Sprintf("prepare provider runtime: %v", err), cursor.environment, nil)
@@ -120,7 +123,7 @@ func (cursor *Cursor) Review(ctx context.Context, request Request) (result Resul
 		class := classifyProcessFailure(processErr, process)
 		attempt.Outcome = protocol.AttemptFailed
 		attempt.ErrorClass = &class
-		return Result{}, processFailure("Cursor review", class, processErr, process, environment, &attempt)
+		return Result{}, processFailure("Cursor review", class, processErr, process, environment, &attempt, strictCredentialRecovery(request.Config, protocol.ProviderCursor))
 	}
 	inner, err := decodeCursorEnvelope(process.Stdout)
 	if err != nil {
@@ -209,7 +212,7 @@ func (cursor *Cursor) preflight(ctx context.Context, executable, workspace strin
 		if missing := missingCapabilities(statusHelpText, []string{"--format"}); len(missing) != 0 {
 			return "", newFailure(protocol.FailureCapability, "Cursor status is missing required flags: "+strings.Join(missing, ", "), environment, nil)
 		}
-		if !cursorOptionSupports(statusHelpText, "--format", "json") {
+		if !optionSupports(statusHelpText, "--format", "json") {
 			return "", newFailure(protocol.FailureCapability, "Cursor status is missing required option value: --format=json", environment, nil)
 		}
 		authResult, err := run("status", "--format", "json")
@@ -331,32 +334,9 @@ func startsWithJSONValue(text string) bool {
 func missingCursorOptionValues(help string, required [][2]string) []string {
 	missing := make([]string, 0)
 	for _, option := range required {
-		if !cursorOptionSupports(help, option[0], option[1]) {
+		if !optionSupports(help, option[0], option[1]) {
 			missing = append(missing, option[0]+"="+option[1])
 		}
 	}
 	return missing
-}
-
-func cursorOptionSupports(help, option, value string) bool {
-	optionPattern := regexp.MustCompile(regexp.QuoteMeta(option) + `([^A-Za-z0-9_-]|$)`)
-	valuePattern := regexp.MustCompile(`(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(value) + `([^A-Za-z0-9_-]|$)`)
-	lines := strings.Split(help, "\n")
-	for index, line := range lines {
-		if !optionPattern.MatchString(line) {
-			continue
-		}
-		section := line
-		for next := index + 1; next < len(lines); next++ {
-			trimmed := strings.TrimSpace(lines[next])
-			if strings.HasPrefix(trimmed, "-") {
-				break
-			}
-			section += "\n" + lines[next]
-		}
-		if valuePattern.MatchString(section) {
-			return true
-		}
-	}
-	return false
 }

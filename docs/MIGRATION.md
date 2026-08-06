@@ -70,9 +70,9 @@ exclusions rather than gaps.
 | Claude Code executable discovery and safe-mode checks | Port | Real adapter with fake-executable tests and an opt-in authenticated smoke | #6 |
 | Cursor Agent executable discovery and sandbox checks | Port | Real adapter with fake-executable tests and an opt-in authenticated smoke | #7 |
 | Existing CLI authentication reuse | Port | Reference provider auth in place; never store credentials | #5, #6, #7 |
-| Empty bundle-only provider workspace | Port | Default `strict` isolation | #4, #5, #6, #7 |
-| Provider user rules, skills, plugins, and memory disabled | Improve | Strict mode disables them; explicit trusted `native` mode preserves them | #4 |
-| Web search enabled by default | Improve | Default off; only CLI or trusted XDG config may enable | #4 |
+| Empty bundle-only provider workspace | Port | Native and strict modes both use an empty provider workspace | #4, #5, #6, #7 |
+| Provider user rules, skills, plugins, and memory disabled | Improve | Opt-in strict mode disables them; default native mode preserves normal provider state | #4 |
+| Web search enabled by default | Improve | Default off for Codex and Claude; explicit CLI Cursor selection implies web because Cursor cannot guarantee web-off | #4 |
 | Claude read-only web tools | Improve | Capability-aware strict/native policy, with web separately authorized | #6 |
 | Process heartbeat and platform `ps` sampling | Improve | Bounded progress plus duration metadata without scraping process tables | #5 |
 | Timeout, cancellation, and child cleanup | Port | Shared Go process runner terminates the provider tree before leader reap on every exit | #5, #29 |

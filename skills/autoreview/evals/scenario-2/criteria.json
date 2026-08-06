@@ -1,11 +1,11 @@
 {
-  "context": "Tests whether explicit user authorization is translated into a single native-isolation Codex rerun while web remains disabled and failure does not trigger fallback.",
+  "context": "Tests whether a strict API-key failure is translated into one native session-login Codex rerun while web remains disabled and failure does not trigger fallback.",
   "type": "weighted_checklist",
   "checklist": [
-    {"name": "Authorization recognized", "description": "rerun-plan.md ties native isolation specifically to the developer's explicit request to use the normal Codex login", "max_score": 10},
+    {"name": "Session login recognized", "description": "rerun-plan.md explains that native is the default session-login mode and strict requires a supported API key", "max_score": 10},
     {"name": "Commit mode", "description": "The exact command uses autoreview review --mode commit --commit HEAD", "max_score": 10},
     {"name": "Codex retained", "description": "The rerun keeps --engine codex and does not switch provider", "max_score": 10},
-    {"name": "Native explicit flag", "description": "The command adds --isolation native explicitly", "max_score": 10},
+    {"name": "Native override", "description": "The command adds --isolation native explicitly so the previous strict selection cannot persist", "max_score": 10},
     {"name": "No web flag", "description": "The command does not add --web-access", "max_score": 10},
     {"name": "Web-off stated", "description": "The plan explicitly states that web access remains disabled", "max_score": 10},
     {"name": "Task contract retained", "description": "The rerun command includes --prompt with the same authoritative task contract", "max_score": 10},

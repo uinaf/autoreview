@@ -129,7 +129,55 @@ func TestCodexReviewReportsAuthenticationFailure(t *testing.T) {
 		Environment: []string{"PATH=/usr/bin:/bin", "HOME=/native/home"},
 	})
 	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationNative, false, 5*time.Second)})
-	_ = assertProviderError(t, err, protocol.FailureAuth)
+	failure := assertProviderError(t, err, protocol.FailureAuth)
+	for _, expected := range []string{"codex login", "CODEX_API_KEY", "OPENAI_API_KEY"} {
+		if !strings.Contains(failure.Message, expected) {
+			t.Fatalf("failure = %q", failure.Message)
+		}
+	}
+}
+
+func TestCodexReviewStrictExplainsCredentialRequirement(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeCodex(t, fakeCodexOptions{})
+	reviewer := NewCodex(CodexOptions{Repository: t.TempDir(), Executable: fake.path, Environment: []string{"PATH=/usr/bin:/bin"}})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
+	failure := assertProviderError(t, err, protocol.FailureAuth)
+	for _, expected := range []string{"strict isolation", "CODEX_API_KEY", "OPENAI_API_KEY", "--isolation native"} {
+		if !strings.Contains(failure.Message, expected) {
+			t.Fatalf("failure = %q", failure.Message)
+		}
+	}
+	if _, err := os.Stat(fake.arguments); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("provider was probed without a strict credential: %v", err)
+	}
+}
+
+func TestCodexReviewStrictReportsMissingExecutableBeforeCredential(t *testing.T) {
+	t.Parallel()
+
+	reviewer := NewCodex(CodexOptions{Repository: t.TempDir(), Executable: "missing-codex", Environment: []string{"PATH=/usr/bin:/bin"}})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
+	failure := assertProviderError(t, err, protocol.FailureCapability)
+	if !strings.Contains(failure.Message, "was not found") || strings.Contains(failure.Message, "API_KEY") {
+		t.Fatalf("failure = %q", failure.Message)
+	}
+}
+
+func TestCodexReviewStrictExplainsInvalidCredentialRecovery(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeCodex(t, fakeCodexOptions{reviewError: "authentication failed"})
+	reviewer := NewCodex(CodexOptions{
+		Repository: t.TempDir(), Executable: fake.path,
+		Environment: []string{"PATH=/usr/bin:/bin", "CODEX_API_KEY=invalid-secret"},
+	})
+	_, err := reviewer.Review(context.Background(), Request{Prompt: "bundle", Config: codexConfig(protocol.IsolationStrict, false, 5*time.Second)})
+	failure := assertProviderError(t, err, protocol.FailureAuth)
+	if !strings.Contains(failure.Message, "verify CODEX_API_KEY or OPENAI_API_KEY") || !strings.Contains(failure.Message, "--isolation native") || strings.Contains(failure.Message, "invalid-secret") {
+		t.Fatalf("failure = %q", failure.Message)
+	}
 }
 
 func TestCodexReviewAcceptsExecCredentialWithoutLoginState(t *testing.T) {

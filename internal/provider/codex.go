@@ -84,6 +84,9 @@ func (codex *Codex) Review(ctx context.Context, request Request) (result Result,
 	if err != nil {
 		return Result{}, newFailure(protocol.FailureCapability, err.Error(), codex.environment, nil)
 	}
+	if failure := strictCredentialFailure(request.Config, protocol.ProviderCodex, codex.environment); failure != nil {
+		return Result{}, failure
+	}
 	runtime, err := config.PrepareRuntime(request.Config, codex.environment)
 	if err != nil {
 		return Result{}, newFailure(protocol.FailureInternal, fmt.Sprintf("prepare provider runtime: %v", err), codex.environment, nil)
@@ -142,7 +145,7 @@ func (codex *Codex) Review(ctx context.Context, request Request) (result Result,
 		class := classifyProcessFailure(processErr, process)
 		attempt.Outcome = protocol.AttemptFailed
 		attempt.ErrorClass = &class
-		return Result{}, processFailure("Codex review", class, processErr, process, runtime.Environment(), &attempt)
+		return Result{}, processFailure("Codex review", class, processErr, process, runtime.Environment(), &attempt, strictCredentialRecovery(request.Config, protocol.ProviderCodex))
 	}
 	message, err := decodeCodexEnvelope(process.Stdout)
 	if err != nil {
@@ -241,7 +244,7 @@ func (codex *Codex) preflight(ctx context.Context, executable string, runtime *c
 	if environmentValue(runtime.Environment(), "CODEX_API_KEY") == "" && environmentValue(runtime.Environment(), "OPENAI_API_KEY") == "" {
 		auth, err := run("login", "status")
 		if err != nil {
-			return "", probeFailure("Codex authentication", err, auth, runtime.Environment(), protocol.FailureAuth)
+			return "", probeFailureWithAuthRecovery("Codex authentication", err, auth, runtime.Environment(), protocol.FailureAuth, "run codex login or set CODEX_API_KEY or OPENAI_API_KEY, then retry")
 		}
 	}
 	return string(match[1]), nil
@@ -394,7 +397,7 @@ func classifyProcessFailure(err error, result processResult) protocol.FailureCla
 			return protocol.FailureCancelled
 		}
 	}
-	detail := strings.ToLower(string(result.Stderr) + "\n" + string(result.Stdout))
+	detail := strings.ToLower(string(result.Stderr))
 	for _, marker := range []string{"not logged in", "unauthorized", "authentication", "login required", "401"} {
 		if strings.Contains(detail, marker) {
 			return protocol.FailureAuth
@@ -403,7 +406,7 @@ func classifyProcessFailure(err error, result processResult) protocol.FailureCla
 	return protocol.FailureProvider
 }
 
-func processFailure(operation string, class protocol.FailureClass, err error, result processResult, environment []string, attempt *protocol.Attempt) *Error {
+func processFailure(operation string, class protocol.FailureClass, err error, result processResult, environment []string, attempt *protocol.Attempt, authRecovery string) *Error {
 	kind := processExit
 	processErr := new(processError)
 	if errors.As(err, &processErr) {
@@ -413,11 +416,11 @@ func processFailure(operation string, class protocol.FailureClass, err error, re
 	if kind == processExit && result.ExitCode >= 0 {
 		message += fmt.Sprintf(" with exit code %d", result.ExitCode)
 	}
-	message += "; " + processRecovery(class, kind)
+	message += "; " + processRecovery(class, kind, authRecovery)
 	return newFailure(class, message, environment, attempt)
 }
 
-func processRecovery(class protocol.FailureClass, kind processErrorKind) string {
+func processRecovery(class protocol.FailureClass, kind processErrorKind, authRecovery string) string {
 	switch {
 	case kind == processOutputLimit:
 		return "reduce the review target size and retry"
@@ -426,6 +429,9 @@ func processRecovery(class protocol.FailureClass, kind processErrorKind) string 
 	case kind == processCleanup:
 		return "retry after confirming no provider process is still running"
 	case class == protocol.FailureAuth:
+		if authRecovery != "" {
+			return authRecovery
+		}
 		return "authenticate the provider CLI and retry"
 	case class == protocol.FailureTimeout:
 		return "retry or increase --timeout"
@@ -439,11 +445,15 @@ func processRecovery(class protocol.FailureClass, kind processErrorKind) string 
 }
 
 func probeFailure(operation string, err error, result processResult, environment []string, fallback protocol.FailureClass) *Error {
+	return probeFailureWithAuthRecovery(operation, err, result, environment, fallback, "")
+}
+
+func probeFailureWithAuthRecovery(operation string, err error, result processResult, environment []string, fallback protocol.FailureClass, authRecovery string) *Error {
 	class := classifyProcessFailure(err, result)
 	if class == protocol.FailureProvider {
 		class = fallback
 	}
-	return processFailure(operation, class, err, result, environment, nil)
+	return processFailure(operation, class, err, result, environment, nil, authRecovery)
 }
 
 func newFailure(class protocol.FailureClass, message string, environment []string, attempt *protocol.Attempt) *Error {
@@ -452,14 +462,4 @@ func newFailure(class protocol.FailureClass, message string, environment []strin
 
 func invalidProviderOutput(name, phase string, environment []string, attempt *protocol.Attempt) *Error {
 	return newFailure(protocol.FailureProtocol, fmt.Sprintf("%s returned an invalid %s; retry or inspect the provider CLI directly for private diagnostics", name, phase), environment, attempt)
-}
-
-func missingCapabilities(output string, required []string) []string {
-	missing := make([]string, 0)
-	for _, capability := range required {
-		if !strings.Contains(output, capability) {
-			missing = append(missing, capability)
-		}
-	}
-	return missing
 }

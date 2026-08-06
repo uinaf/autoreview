@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/uinaf/autoreview/internal/protocol"
 )
 
 const providerOutputSentinel = "AR_REVIEW_SOURCE_SENTINEL_7f8e9d"
@@ -61,6 +63,27 @@ func TestRunProcessEmptyEnvironmentDoesNotInheritParent(t *testing.T) {
 	}
 	if strings.Contains(string(result.Stdout), "PATH=") || strings.Contains(string(result.Stdout), "HOME=") {
 		t.Fatalf("child inherited environment: %q", result.Stdout)
+	}
+}
+
+func TestClassifyProcessFailureDoesNotTrustProviderStdoutForAuthentication(t *testing.T) {
+	t.Parallel()
+
+	result := processResult{
+		Stdout: []byte(`{"message":"reviewed authentication and 401 handling"}`),
+		Stderr: []byte("maximum turns reached"),
+	}
+	if class := classifyProcessFailure(errors.New("exit status 1"), result); class != protocol.FailureProvider {
+		t.Fatalf("failure class = %q", class)
+	}
+}
+
+func TestClassifyProcessFailureUsesProviderStderrForAuthentication(t *testing.T) {
+	t.Parallel()
+
+	result := processResult{Stderr: []byte("401 unauthorized")}
+	if class := classifyProcessFailure(errors.New("exit status 1"), result); class != protocol.FailureAuth {
+		t.Fatalf("failure class = %q", class)
 	}
 }
 

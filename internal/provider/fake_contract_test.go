@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,6 +56,33 @@ func TestFakeProviderCLIsRejectInvalidReviewArguments(t *testing.T) {
 		valid := cursorArguments(cursorConfig(protocol.IsolationStrict, true, 5*time.Second), workspace, "test-model")
 		assertInvalidContracts(t, newFakeCursor(t, fakeCursorOptions{}).path, valid, []string{"--sandbox", "disabled"})
 	})
+
+	t.Run("grok", func(t *testing.T) {
+		t.Parallel()
+		workspace := t.TempDir()
+		promptPath := filepath.Join(workspace, "review.prompt")
+		if err := os.WriteFile(promptPath, []byte("review input"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		schema, err := contractschema.GrokReviewV1()
+		if err != nil {
+			t.Fatal(err)
+		}
+		valid := grokArguments(grokConfig(protocol.IsolationStrict, false, 5*time.Second), workspace, promptPath, string(schema), "test-model")
+		executable := newFakeGrok(t, fakeGrokOptions{}).path
+		mutations := [][]string{
+			appendCopy(valid, "--unknown"),
+			appendCopy(valid, "--model", "duplicate"),
+			replaceArgumentAfter(t, valid, "--prompt-file", filepath.Join(workspace, "missing.prompt")),
+			swapFirstTwo(valid),
+			replaceArgumentAfter(t, valid, "--model", "--other-flag"),
+		}
+		for index, arguments := range mutations {
+			t.Run(fmt.Sprintf("mutation-%d", index+1), func(t *testing.T) {
+				expectContractFailure(t, executable, arguments, "")
+			})
+		}
+	})
 }
 
 func TestFakeProviderCLIsRejectInvalidProbeArguments(t *testing.T) {
@@ -68,6 +96,7 @@ func TestFakeProviderCLIsRejectInvalidProbeArguments(t *testing.T) {
 		{name: "codex extra version flag", executable: func(t *testing.T) string { return newFakeCodex(t, fakeCodexOptions{}).path }, arguments: []string{"--version", "--json"}},
 		{name: "claude incomplete auth", executable: func(t *testing.T) string { return newFakeClaude(t, fakeClaudeOptions{}).path }, arguments: []string{"auth", "status"}},
 		{name: "cursor conflicting status format", executable: func(t *testing.T) string { return newFakeCursor(t, fakeCursorOptions{}).path }, arguments: []string{"status", "--format", "text"}},
+		{name: "grok extra models flag", executable: func(t *testing.T) string { return newFakeGrok(t, fakeGrokOptions{}).path }, arguments: []string{"models", "--json"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

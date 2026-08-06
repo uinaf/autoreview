@@ -274,6 +274,79 @@ func TestConfigCommandPrintsSourceAwareJSON(t *testing.T) {
 	}
 }
 
+func TestConfigCommandReportsNativeAndCursorWebDefaults(t *testing.T) {
+	t.Parallel()
+
+	repository := cliRepository(t)
+	lookup := func(name string) (string, bool) {
+		if name == "XDG_CONFIG_HOME" {
+			return t.TempDir(), true
+		}
+		return "", false
+	}
+	for _, test := range []struct {
+		name            string
+		arguments       []string
+		isolation       protocol.Isolation
+		isolationSource config.Source
+		web             bool
+		webSource       config.Source
+	}{
+		{name: "implicit", arguments: []string{"config", "--repository", repository, "--engine", "cursor", "--json"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, web: true, webSource: config.SourceFlag},
+		{name: "explicit false", arguments: []string{"config", "--repository", repository, "--engine", "cursor", "--web-access=false", "--json"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, webSource: config.SourceFlag},
+		{name: "strict still implicit", arguments: []string{"config", "--repository", repository, "--engine", "cursor", "--isolation", "strict", "--json"}, isolation: protocol.IsolationStrict, isolationSource: config.SourceFlag, web: true, webSource: config.SourceFlag},
+		{name: "Grok native web off", arguments: []string{"config", "--repository", repository, "--engine", "grok", "--json"}, isolation: protocol.IsolationNative, isolationSource: config.SourceDefault, webSource: config.SourceDefault},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			exit := run(context.Background(), test.arguments, &stdout, &stderr, dependencies{
+				lookupEnv: lookup,
+				homeDir:   func() (string, error) { return t.TempDir(), nil },
+			})
+			if exit != 0 {
+				t.Fatalf("run() exit = %d, stderr = %s", exit, stderr.String())
+			}
+			var effective config.Effective
+			if err := json.Unmarshal(stdout.Bytes(), &effective); err != nil {
+				t.Fatal(err)
+			}
+			if effective.Isolation.Value != test.isolation || effective.Isolation.Source != test.isolationSource {
+				t.Fatalf("isolation = %+v", effective.Isolation)
+			}
+			if effective.WebAccess.Value != test.web || effective.WebAccess.Source != test.webSource {
+				t.Fatalf("web_access = %+v", effective.WebAccess)
+			}
+		})
+	}
+
+	t.Run("repository engine does not grant web", func(t *testing.T) {
+		repository := cliRepository(t)
+		if err := os.WriteFile(filepath.Join(repository, ".autoreview.yaml"), []byte("engine: cursor\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		exit := run(context.Background(), []string{"config", "--repository", repository, "--json"}, &stdout, &stderr, dependencies{
+			lookupEnv: lookup,
+			homeDir:   func() (string, error) { return t.TempDir(), nil },
+		})
+		if exit != 0 {
+			t.Fatalf("run() exit = %d, stderr = %s", exit, stderr.String())
+		}
+		var effective config.Effective
+		if err := json.Unmarshal(stdout.Bytes(), &effective); err != nil {
+			t.Fatal(err)
+		}
+		if effective.Engine.Value != protocol.ProviderCursor || effective.Engine.Source != config.SourceRepository {
+			t.Fatalf("engine = %+v", effective.Engine)
+		}
+		if effective.WebAccess.Value || effective.WebAccess.Source != config.SourceDefault {
+			t.Fatalf("web_access = %+v", effective.WebAccess)
+		}
+	})
+}
+
 func TestConfigCommandRejectsMissingEngine(t *testing.T) {
 	t.Parallel()
 
@@ -400,7 +473,7 @@ func cleanResult() provider.Result {
 			DurationMS: 1,
 		},
 		Duration:  time.Millisecond,
-		Isolation: protocol.IsolationStrict,
+		Isolation: protocol.IsolationNative,
 	}
 }
 

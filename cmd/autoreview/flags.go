@@ -42,7 +42,7 @@ type configFlagValues struct {
 
 func bindConfigFlags(flags *flag.FlagSet) configFlagValues {
 	return configFlagValues{
-		engine:    flags.String("engine", "", "review engine: codex, claude, or cursor"),
+		engine:    flags.String("engine", "", "review engine: codex, claude, cursor, or grok"),
 		model:     flags.String("model", "", "provider model override"),
 		reasoning: flags.String("reasoning-effort", "", "reasoning effort"),
 		timeout:   flags.String("timeout", "", "provider timeout"),
