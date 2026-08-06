@@ -23,6 +23,53 @@ func validateRegularOrMissingFile(root, relative string) error {
 	return err
 }
 
+// validateTrackedWorktreePath allows regular files, missing finals, and final
+// symlinks. Tracked symlink content is reviewed from Git diffs, never by
+// following the link. Intermediate symlink components still fail closed.
+func validateTrackedWorktreePath(root, relative string) error {
+	err := validateRegularOrMissingFile(root, relative)
+	if err == nil {
+		return nil
+	}
+	if symlink, symlinkErr := finalPathIsSymlink(root, relative); symlinkErr == nil && symlink {
+		return nil
+	}
+	return err
+}
+
+func finalPathIsSymlink(root, relative string) (bool, error) {
+	current, err := unix.Open(root, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return false, err
+	}
+	closeCurrent := true
+	defer func() {
+		if closeCurrent {
+			_ = unix.Close(current)
+		}
+	}()
+
+	components := strings.Split(relative, "/")
+	for index, component := range components {
+		if index+1 == len(components) {
+			var info unix.Stat_t
+			if err := unix.Fstatat(current, component, &info, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+				return false, err
+			}
+			return info.Mode&unix.S_IFMT == unix.S_IFLNK, nil
+		}
+		next, openErr := unix.Openat(current, component, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+		_ = unix.Close(current)
+		closeCurrent = false
+		if openErr != nil {
+			return false, openErr
+		}
+		current = next
+		closeCurrent = true
+	}
+	return false, fmt.Errorf("empty tracked path")
+}
+
 func walkRegularFile(root, relative string, allowMissingFinal bool) (*os.File, os.FileInfo, error) {
 	current, err := unix.Open(root, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
 	if err != nil {
