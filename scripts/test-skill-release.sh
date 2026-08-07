@@ -63,7 +63,7 @@ chmod 755 "$fake_bin/tessl"
 run_verifier() {
   PATH="$fake_bin:$PATH" \
     FAKE_TESSL_SOURCE="$1" \
-    "$verifier" 2.1.0
+    "$verifier" 2.1.1
 }
 
 run_verifier "$skill_directory" >/dev/null

@@ -109,3 +109,9 @@ source file plus generated package metadata. Matching content completes a
 retry; mismatched content fails and requires a new skill version. A successful
 new publication must pass the same clean-install comparison before the workflow
 completes.
+
+The first automated publication, skill version `2.1.0`, was rejected by Tessl
+moderation because the skill included an agent-executable remote installer
+pipeline. That immutable version remains hidden. Version `2.1.1` removes remote
+installation from the skill boundary; installation belongs to a user-approved
+host package or release workflow.
