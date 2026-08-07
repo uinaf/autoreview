@@ -40,11 +40,12 @@ if [ "$1" != install ]; then
 fi
 
 installed=.tessl/plugins/uinaf/autoreview
-mkdir -p "$installed/.tessl-plugin" "$installed/references" \
+mkdir -p "$installed/.tessl-plugin" "$installed/agents" "$installed/references" \
   .agents/skills .codex/skills
 cp "$FAKE_TESSL_SOURCE/.tessl-plugin/plugin.json" \
   "$installed/.tessl-plugin/plugin.json"
 cp "$FAKE_TESSL_SOURCE/SKILL.md" "$installed/SKILL.md"
+cp "$FAKE_TESSL_SOURCE/agents/openai.yaml" "$installed/agents/openai.yaml"
 cp "$FAKE_TESSL_SOURCE/references/"*.md "$installed/references/"
 name=$(jq -r .name "$FAKE_TESSL_SOURCE/.tessl-plugin/plugin.json")
 version=$(jq -r .version "$FAKE_TESSL_SOURCE/.tessl-plugin/plugin.json")
@@ -67,14 +68,20 @@ run_verifier() {
 
 run_verifier "$skill_directory" >/dev/null
 
-stale_skill=$scratch/stale-skill
-mkdir -p "$stale_skill"
-cp -R "$skill_directory/." "$stale_skill/"
-printf '\nstale registry content\n' >> "$stale_skill/SKILL.md"
-if run_verifier "$stale_skill" > "$scratch/stale.out" 2>&1; then
-  printf 'stale published content passed verification\n' >&2
-  exit 1
-fi
-grep -F 'published content differs: SKILL.md' "$scratch/stale.out" >/dev/null
+assert_stale_rejected() {
+  relative_path=$1
+  stale_skill=$scratch/stale-${relative_path//\//-}
+  mkdir -p "$stale_skill"
+  cp -R "$skill_directory/." "$stale_skill/"
+  printf '\nstale registry content\n' >> "$stale_skill/$relative_path"
+  if run_verifier "$stale_skill" > "$scratch/stale.out" 2>&1; then
+    printf 'stale published content passed verification: %s\n' "$relative_path" >&2
+    exit 1
+  fi
+  grep -F "published content differs: $relative_path" "$scratch/stale.out" >/dev/null
+}
+
+assert_stale_rejected SKILL.md
+assert_stale_rejected agents/openai.yaml
 
 printf 'skill release tests passed\n'
