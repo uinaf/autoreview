@@ -8,7 +8,6 @@ on:
       - "skills/autoreview/**"
       - "cmd/autoreview/skill_package_test.go"
       - "mise.toml"
-      - "scripts/test-skill-release.sh"
       - "scripts/verify-published-skill.sh"
       - ".github/workflows/publish-skill.yml"
   workflow_dispatch:
@@ -58,7 +57,7 @@ jobs:
           version-strategy: manifest
           commit-version-bumps: "false"
 
-      - name: Verify published package
+      - name: Smoke published skill
         env:
           PUBLISHED_VERSIONS: ${{ steps.publish.outputs.versions }}
         run: |
