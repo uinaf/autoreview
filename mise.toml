@@ -123,7 +123,13 @@ test "$(find dist -maxdepth 1 -name 'autoreview_*.tar.gz' -type f | wc -l | tr -
 for archive in dist/autoreview_*.tar.gz; do
   test "$(tar -tzf "$archive" | LC_ALL=C sort | tr '\n' ' ')" = "LICENSE README.md autoreview "
 done
-test -z "$(rg -n 'xattr|com\.apple\.quarantine' dist/homebrew/Casks/autoreview.rb)"
+if rg -n 'xattr|com\.apple\.quarantine' dist/homebrew/Casks/autoreview.rb; then
+  printf '%s\n' "generated Homebrew cask removes quarantine" >&2
+  exit 1
+else
+  rg_status=$?
+  test "$rg_status" -eq 1
+fi
 (cd dist && shasum -a 256 -c checksums.txt)
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64) native_target='darwin_arm64' ;;

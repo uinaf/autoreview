@@ -2,8 +2,15 @@
 
 set -euo pipefail
 
-[[ "${EXPECTED_APPLE_TEAM_ID:-}" =~ ^[A-Z0-9]{10}$ ]]
-[[ "${GORELEASER_CURRENT_TAG:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+fail() {
+  printf '%s\n' "$1" >&2
+  exit 1
+}
+
+[[ "${EXPECTED_APPLE_TEAM_ID:-}" =~ ^[A-Z0-9]{10}$ ]] ||
+  fail "expected Apple Team ID is missing or invalid"
+[[ "${GORELEASER_CURRENT_TAG:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+  fail "GoReleaser release tag is missing or invalid"
 
 verify_dir="$(mktemp -d)"
 trap 'rm -rf "$verify_dir"' EXIT
