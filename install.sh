@@ -3,6 +3,9 @@
 set -eu
 
 repository_url=${AUTOREVIEW_INSTALL_REPOSITORY_URL:-https://github.com/uinaf/autoreview}
+while [ "${repository_url%/}" != "$repository_url" ]; do
+  repository_url=${repository_url%/}
+done
 requested_version=latest
 destination=
 temporary_directory=

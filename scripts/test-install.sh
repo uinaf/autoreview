@@ -15,6 +15,8 @@ grep -F "archive=autoreview_\${release_tag}_linux_\${architecture}.tar.gz" \
 
 fixtures=$scratch/fixtures
 fake_bin=$scratch/bin
+fixture_sha256sum=$(command -v sha256sum || true)
+fixture_shasum=$(command -v shasum || true)
 mkdir -p "$fixtures" "$fake_bin"
 
 make_archive() {
@@ -54,10 +56,10 @@ EOF
 
 cat > "$fake_bin/sha256sum" <<'EOF'
 #!/bin/sh
-if command -v shasum >/dev/null 2>&1; then
-  exec shasum -a 256 "$@"
+if [ -n "${FIXTURE_SHA256SUM:-}" ]; then
+  exec "$FIXTURE_SHA256SUM" "$@"
 fi
-exec /usr/bin/sha256sum "$@"
+exec "$FIXTURE_SHASUM" -a 256 "$@"
 EOF
 
 cat > "$fake_bin/curl" <<'EOF'
@@ -128,8 +130,10 @@ run_installer() {
     HOME="$case_home" \
     TMPDIR="$case_tmp" \
     FIXTURE_DIR="$case_fixtures" \
+    FIXTURE_SHA256SUM="$fixture_sha256sum" \
+    FIXTURE_SHASUM="$fixture_shasum" \
     FAKE_CURL_LOG="$case_log" \
-    AUTOREVIEW_INSTALL_REPOSITORY_URL=https://fixture.invalid \
+    AUTOREVIEW_INSTALL_REPOSITORY_URL="${TEST_REPOSITORY_URL:-https://fixture.invalid}" \
     TEST_UNAME_S="${TEST_UNAME_S:-Linux}" \
     TEST_UNAME_M="${TEST_UNAME_M:-x86_64}" \
     FAKE_CURL_MODE="${FAKE_CURL_MODE:-}" \
@@ -141,8 +145,10 @@ run_installer_without_home() {
     PATH="$fake_bin:$PATH" \
     TMPDIR="$case_tmp" \
     FIXTURE_DIR="$case_fixtures" \
+    FIXTURE_SHA256SUM="$fixture_sha256sum" \
+    FIXTURE_SHASUM="$fixture_shasum" \
     FAKE_CURL_LOG="$case_log" \
-    AUTOREVIEW_INSTALL_REPOSITORY_URL=https://fixture.invalid \
+    AUTOREVIEW_INSTALL_REPOSITORY_URL="${TEST_REPOSITORY_URL:-https://fixture.invalid}" \
     TEST_UNAME_S="${TEST_UNAME_S:-Linux}" \
     TEST_UNAME_M="${TEST_UNAME_M:-x86_64}" \
     FAKE_CURL_MODE="${FAKE_CURL_MODE:-}" \
@@ -195,6 +201,13 @@ grep -Fx \
   "$case_log" >/dev/null
 grep -Fx \
   'https://fixture.invalid/releases/download/v1.2.3/checksums.txt' \
+  "$case_log" >/dev/null
+assert_no_residue
+
+new_case
+TEST_REPOSITORY_URL=https://fixture.invalid/ run_installer >/dev/null
+grep -Fx \
+  'https://fixture.invalid/releases/download/v1.2.3/autoreview_v1.2.3_linux_amd64.tar.gz' \
   "$case_log" >/dev/null
 assert_no_residue
 
