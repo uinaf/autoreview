@@ -41,7 +41,7 @@ run = "go build ./cmd/autoreview"
 
 [tasks.verify]
 description = "Run deterministic repository verification"
-depends = ["fmt:check", "test", "test:race", "vet", "build", "installer:check"]
+depends = ["fmt:check", "test", "test:race", "vet", "build", "installer:check", "skill:publish:check"]
 
 [tasks."installer:test"]
 description = "Run the offline Linux installer fixture tests"
@@ -115,6 +115,24 @@ fi
 description = "Validate the standalone skill package and evals"
 run = "go test ./cmd/autoreview -run '^TestSkill' -count=1"
 
+[tasks."skill:publish:test"]
+description = "Run offline skill publication fixture tests"
+run = "bash scripts/test-skill-release.sh"
+
+[tasks."skill:publish:check"]
+description = "Validate skill publication automation"
+depends = ["skill:publish:test"]
+run = '''
+set -e
+bash -n scripts/publish-skill.sh
+bash -n scripts/test-skill-release.sh
+bash -n scripts/verify-published-skill.sh
+shellcheck -s bash scripts/publish-skill.sh
+shellcheck -s bash scripts/test-skill-release.sh
+shellcheck -s bash scripts/verify-published-skill.sh
+actionlint .github/workflows/publish-skill.yml
+'''
+
 [tasks."verify:release"]
 description = "Run complete v0.1 source-release gates, including live vulnerability data"
 depends = ["verify", "test:integration", "vuln", "build:cross", "runtime:go-only", "skill:package"]
@@ -168,5 +186,5 @@ run = '''
 set -e
 test "$(tessl --version)" = "0.94.0"
 TESSL_AUTO_UPDATE_INTERVAL_MINUTES=0 tessl skill lint skills/autoreview
-TESSL_AUTO_UPDATE_INTERVAL_MINUTES=0 tessl review run --workspace uinaf --force --threshold 100 --label autoreview-2.0.0-tessl-0.94.0 skills/autoreview
+TESSL_AUTO_UPDATE_INTERVAL_MINUTES=0 tessl review run --workspace uinaf --force --threshold 100 --label autoreview-2.1.0-tessl-0.94.0 skills/autoreview
 '''
