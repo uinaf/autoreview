@@ -104,16 +104,16 @@ explicit version from `plugin.json` without mutating the repository.
 
 Publication is immutable and rerunnable. If the declared version already
 exists, the workflow does not replace it. Instead, it installs that exact
-version into a clean temporary Codex project and byte-compares every shipped
-install-visible source file plus generated package metadata. The package gate
-separately validates publication-only input such as `agents/openai.yaml`, which
-Tessl consumes during publication but does not install. Matching content
-completes a retry; mismatched content fails and requires a new skill version. A
-successful new publication must pass the same clean-install comparison before
-the workflow completes. Because Tessl moderation is asynchronous, the clean
-install retries the registry's temporary hidden-content response for up to five
-minutes; other install failures stop immediately, and an unapproved version
-remains a failure.
+version into a clean temporary Codex project, byte-compares every
+install-visible source file, and structurally validates generated package
+metadata. The package gate separately validates publication-only input such as
+`agents/openai.yaml`, which Tessl consumes during publication but does not
+install. Matching content completes a retry; mismatched content fails and
+requires a new skill version. A successful new publication must pass the same
+clean-install comparison before the workflow completes. Because Tessl
+moderation is asynchronous, the clean install retries the registry's temporary
+hidden-content response for up to five minutes; other install failures stop
+immediately, and an unapproved version remains a failure.
 
 The first automated publication, skill version `2.1.0`, was rejected by Tessl
 moderation because the skill included an agent-executable remote installer
