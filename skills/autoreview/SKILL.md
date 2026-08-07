@@ -25,7 +25,7 @@ only; it never edits files, runs tests, commits, or pushes.
    # macOS: signed and notarized release
    brew install --cask uinaf/tap/autoreview
 
-   # Linux or another Go-managed environment: latest tagged release
+   # Linux or another Go-managed environment with Go 1.26+: latest tagged release
    go install github.com/uinaf/autoreview/cmd/autoreview@latest
    ```
 

@@ -44,6 +44,7 @@ Use `branch` for the complete merge-base-to-HEAD diff or `commit` for one
 non-merge commit:
 
 ```bash
+prompt="Review this completed change against its acceptance criteria."
 autoreview review --mode branch --base origin/main --engine claude \
   --prompt "$prompt"
 
