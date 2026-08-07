@@ -6,6 +6,7 @@ actionlint = "1.7.12"
 go = "1.26.2"
 goreleaser = "2.17.1"
 rg = "15.2.0"
+shellcheck = "0.11.0"
 trufflehog = "3.96.0"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.6.0"
 
@@ -40,7 +41,22 @@ run = "go build ./cmd/autoreview"
 
 [tasks.verify]
 description = "Run deterministic repository verification"
-depends = ["fmt:check", "test", "test:race", "vet", "build"]
+depends = ["fmt:check", "test", "test:race", "vet", "build", "installer:check"]
+
+[tasks."installer:test"]
+description = "Run the offline Linux installer fixture tests"
+run = "bash scripts/test-install.sh"
+
+[tasks."installer:check"]
+description = "Validate the Linux installer"
+depends = ["installer:test"]
+run = '''
+set -e
+sh -n install.sh
+bash -n scripts/test-install.sh
+shellcheck -s sh install.sh
+shellcheck -s bash scripts/test-install.sh
+'''
 
 [tasks."test:integration"]
 description = "Run CLI and scanner integration tests"
@@ -105,6 +121,7 @@ depends = ["verify", "test:integration", "vuln", "build:cross", "runtime:go-only
 
 [tasks."release:check"]
 description = "Validate release and GitHub Actions configuration"
+depends = ["installer:check"]
 run = '''
 set -e
 actionlint
@@ -120,6 +137,8 @@ run = '''
 set -e
 goreleaser release --snapshot --clean --skip=publish,sign
 test "$(find dist -maxdepth 1 -name 'autoreview_*.tar.gz' -type f | wc -l | tr -d ' ')" = "4"
+test "$(find dist -maxdepth 1 -name 'autoreview_*_linux_amd64.tar.gz' -type f | wc -l | tr -d ' ')" = "1"
+test "$(find dist -maxdepth 1 -name 'autoreview_*_linux_arm64.tar.gz' -type f | wc -l | tr -d ' ')" = "1"
 for archive in dist/autoreview_*.tar.gz; do
   test "$(tar -tzf "$archive" | LC_ALL=C sort | tr '\n' ' ')" = "LICENSE README.md autoreview "
 done

@@ -16,8 +16,23 @@ brew install --cask uinaf/tap/autoreview
 autoreview --version
 ```
 
-Linux users and consumers that prefer Go tooling can install the latest tagged
-CLI with Go 1.26 or newer:
+On Linux amd64 or arm64, install the latest released binary without Go,
+Homebrew, `jq`, or `sudo`:
+
+```bash
+curl --proto '=https' --tlsv1.2 -fsSL \
+  https://raw.githubusercontent.com/uinaf/autoreview/main/install.sh | sh
+~/.local/bin/autoreview --version
+```
+
+Pass `--version v0.4.0` or `--dest /chosen/bin` after `sh -s --` to pin a
+release or override `${HOME}/.local/bin`. The installer downloads the archive
+and `checksums.txt` from the same GitHub Release, verifies the exact SHA-256,
+and atomically replaces the destination binary. See
+[Release verification](docs/RELEASES.md#linux-installer-trust-boundary) for the
+HTTPS trust boundary and independent Cosign and GitHub attestation checks.
+
+Consumers that prefer Go tooling can instead install with Go 1.26 or newer:
 
 ```bash
 go install github.com/uinaf/autoreview/cmd/autoreview@latest
