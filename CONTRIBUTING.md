@@ -60,5 +60,7 @@ a major; and docs, test, chore, build, and CI changes do not publish.
 
 The release job creates no version-bump commit. It mints a short-lived
 `uinaf-releaser` token inside the `release` Environment, creates the tag and
-GitHub Release, signs and attests the artifacts, and updates the Homebrew tap.
-See [Releases](docs/RELEASES.md) for the complete contract and recovery path.
+GitHub Release, validates Apple signing credentials supplied by that protected
+Environment, signs and notarizes the macOS binaries, signs and attests all
+artifacts, and updates the Homebrew tap. See [Releases](docs/RELEASES.md) for
+the complete contract and recovery path.

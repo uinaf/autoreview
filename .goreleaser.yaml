@@ -33,6 +33,21 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64" }}'
+      ids:
+        - autoreview
+      sign:
+        certificate: "{{ .Env.APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}"
+        password: "{{ .Env.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.APPLE_NOTARY_API_ISSUER_ID }}"
+        key_id: "{{ .Env.APPLE_NOTARY_API_KEY_ID }}"
+        key: "{{ .Env.APPLE_NOTARY_API_KEY_P8_BASE64 }}"
+        wait: true
+        timeout: 20m
+
 signs:
   - cmd: cosign
     signature: "${artifact}.sigstore.json"
@@ -81,9 +96,3 @@ homebrew_casks:
       - formula: trufflehog
     url:
       verified: github.com/uinaf/autoreview/
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/autoreview"]
-          end

@@ -211,19 +211,33 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish release artifacts
+      - name: Install GoReleaser
         if: steps.tag.outputs.present == 'true'
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
           version: v2.17.1
-          args: release --clean
+          install-only: true
+
+      - name: Publish release artifacts
+        if: steps.tag.outputs.present == 'true'
+        shell: bash
         env:
+          APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARY_API_ISSUER_ID: ${{ vars.APPLE_NOTARY_API_ISSUER_ID }}
+          APPLE_NOTARY_API_KEY_ID: ${{ vars.APPLE_NOTARY_API_KEY_ID }}
+          APPLE_NOTARY_API_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_API_KEY_P8_BASE64 }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           GITHUB_TOKEN: ${{ steps.release-bot.outputs.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.release-bot.outputs.token }}
           GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
           RELEASE_BOT_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
           RELEASE_BOT_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
+        run: |
+          set -euo pipefail
+          ./scripts/verify-apple-credentials.sh "$APPLE_TEAM_ID"
+          exec goreleaser release --clean
 
       - name: Verify checksums and signature
         if: steps.tag.outputs.present == 'true'
@@ -236,6 +250,13 @@ jobs:
             --certificate-identity "https://github.com/uinaf/autoreview/.github/workflows/ci.yml@refs/heads/main" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             dist/checksums.txt
+
+      - name: Verify Apple signatures
+        if: steps.tag.outputs.present == 'true'
+        env:
+          EXPECTED_APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
+        run: ./scripts/verify-apple-release.sh
 
       - name: Attest build provenance
         if: steps.tag.outputs.present == 'true'
