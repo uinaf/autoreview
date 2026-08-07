@@ -23,6 +23,19 @@ before Apple accepts their notarization submissions. Their Apple signing ID is
 Apple Team ID. Apple creates tickets for standalone binaries but does not
 support stapling tickets to them, so Gatekeeper retrieves the ticket online.
 
+## Linux installer trust boundary
+
+The installer script and the release tag, matching archive, and `checksums.txt`
+it obtains all come over HTTPS from GitHub. The checksum detects a corrupt or
+mismatched archive, but because the installer, archive, and checksum use the
+same transport and hosting boundary, it does not provide independent provenance
+verification. The installer never modifies shell startup files or uses
+privilege escalation.
+
+For independent verification, download the artifacts instead and use the
+Cosign signature and GitHub build attestation workflow below before installing
+the binary.
+
 ## Verify a release
 
 Download one archive plus the manifest and signature bundle from the matching

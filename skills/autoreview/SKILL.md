@@ -25,7 +25,11 @@ only; it never edits files, runs tests, commits, or pushes.
    # macOS: signed and notarized release
    brew install --cask uinaf/tap/autoreview
 
-   # Linux or another Go-managed environment with Go 1.26+: latest tagged release
+   # Linux amd64 or arm64: checksum-verified binary, no Go or sudo
+   curl --proto '=https' --tlsv1.2 -fsSL \
+     https://raw.githubusercontent.com/uinaf/autoreview/main/install.sh | sh
+
+   # Alternative for a Go-managed environment with Go 1.26+
    go install github.com/uinaf/autoreview/cmd/autoreview@latest
    ```
 
