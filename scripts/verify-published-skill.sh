@@ -82,7 +82,6 @@ actual_files=$verification_root/actual-files.txt
 printf '%s\n' \
   '.tessl-plugin/plugin.json' \
   'SKILL.md' \
-  'agents/openai.yaml' \
   'references/configuration.md' \
   'references/providers.md' \
   'references/results.md' \
