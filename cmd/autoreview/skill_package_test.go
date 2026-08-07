@@ -43,7 +43,7 @@ func TestSkillPackageIsStandaloneAndPrivateDataFree(t *testing.T) {
 
 	var manifest skillManifest
 	decodeJSONFile(t, filepath.Join(root, ".tessl-plugin", "plugin.json"), &manifest)
-	if manifest.Name != "uinaf/autoreview" || manifest.Description != description || !slices.Equal(manifest.Skills, []string{"."}) || manifest.Version != "2.1.0" {
+	if manifest.Name != "uinaf/autoreview" || manifest.Description != description || !slices.Equal(manifest.Skills, []string{"."}) || manifest.Version != "2.1.1" {
 		t.Fatalf("manifest drifted from SKILL.md: %+v", manifest)
 	}
 
