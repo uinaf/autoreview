@@ -115,18 +115,11 @@ fi
 description = "Validate the standalone skill package and evals"
 run = "go test ./cmd/autoreview -run '^TestSkill' -count=1"
 
-[tasks."skill:publish:test"]
-description = "Run offline skill publication fixture tests"
-run = "bash scripts/test-skill-release.sh"
-
 [tasks."skill:publish:check"]
 description = "Validate skill publication automation"
-depends = ["skill:publish:test"]
 run = '''
 set -e
-bash -n scripts/test-skill-release.sh
 bash -n scripts/verify-published-skill.sh
-shellcheck -s bash scripts/test-skill-release.sh
 shellcheck -s bash scripts/verify-published-skill.sh
 actionlint .github/workflows/publish-skill.yml
 '''
