@@ -12,7 +12,7 @@ if [ -z "$requested_version" ]; then
   exit 2
 fi
 
-for required_command in cmp diff find jq mktemp sed sleep sort tessl; do
+for required_command in cat cmp diff find grep jq mktemp sed sleep sort tessl; do
   command -v "$required_command" >/dev/null 2>&1 || {
     printf 'required command not found: %s\n' "$required_command" >&2
     exit 1
