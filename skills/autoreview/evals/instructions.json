@@ -1,8 +1,8 @@
 {
   "instructions": [
     {
-      "instruction": "Use only the installed autoreview binary and installed TruffleHog dependency",
-      "original_snippets": "Require the installed dependencies. Do not invoke source-tree internals or recreate the runtime in shell or Python.",
+      "instruction": "Use only the installed autoreview binary and installed TruffleHog dependency, offering a canonical approval-gated install when autoreview is missing",
+      "original_snippets": "Require the installed dependencies. If `autoreview` is missing, stop and offer the canonical install command for the host. Run it only with user approval. Do not invoke source-tree internals, build an ad hoc replacement, or recreate the runtime in shell or Python.",
       "relevant_when": "Starting any autoreview closeout",
       "why_given": "new knowledge"
     },
