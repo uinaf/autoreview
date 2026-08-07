@@ -39,6 +39,17 @@ if [ "$1" != install ]; then
   exit 2
 fi
 
+pending_failures=${FAKE_TESSL_PENDING_FAILURES:-0}
+pending_count=0
+if [ -n "${FAKE_TESSL_PENDING_FILE:-}" ] && [ -f "$FAKE_TESSL_PENDING_FILE" ]; then
+  pending_count=$(cat "$FAKE_TESSL_PENDING_FILE")
+fi
+if [ "$pending_count" -lt "$pending_failures" ]; then
+  printf '%d\n' "$((pending_count + 1))" > "$FAKE_TESSL_PENDING_FILE"
+  printf '403 Forbidden\nTile version contents are hidden because moderation did not pass.\n' >&2
+  exit 1
+fi
+
 installed=.tessl/plugins/uinaf/autoreview
 mkdir -p "$installed/.tessl-plugin" "$installed/agents" "$installed/references" \
   .agents/skills .codex/skills
@@ -63,10 +74,18 @@ chmod 755 "$fake_bin/tessl"
 run_verifier() {
   PATH="$fake_bin:$PATH" \
     FAKE_TESSL_SOURCE="$1" \
+    FAKE_TESSL_PENDING_FAILURES="${2:-0}" \
+    FAKE_TESSL_PENDING_FILE="$scratch/pending-count" \
+    TESSL_VERIFY_INSTALL_ATTEMPTS=3 \
+    TESSL_VERIFY_INSTALL_INTERVAL_SECONDS=0 \
     "$verifier" 2.1.1
 }
 
 run_verifier "$skill_directory" >/dev/null
+printf '0\n' > "$scratch/pending-count"
+run_verifier "$skill_directory" 1 > "$scratch/pending.out"
+grep -F 'awaiting moderation; retrying install (1/3)' "$scratch/pending.out" >/dev/null
+test "$(cat "$scratch/pending-count")" = 1
 
 assert_stale_rejected() {
   relative_path=$1
