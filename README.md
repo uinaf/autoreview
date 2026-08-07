@@ -89,4 +89,8 @@ expectations.
 
 ## License
 
-[MIT](LICENSE)
+This project succeeds OpenClaw's
+[original autoreview agent skill](https://github.com/openclaw/agent-skills/tree/main/skills/autoreview).
+The original workflow is MIT licensed and credited to OpenClaw. This project's
+[MIT license](LICENSE) preserves the copyright notices for both OpenClaw and
+uinaf.
