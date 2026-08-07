@@ -4,7 +4,7 @@ set -eu
 
 repository_url=${AUTOREVIEW_INSTALL_REPOSITORY_URL:-https://github.com/uinaf/autoreview}
 requested_version=latest
-destination=${HOME:?HOME is required}/.local/bin
+destination=
 temporary_directory=
 destination_temporary=
 
@@ -67,6 +67,10 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+[ -n "$destination" ] || {
+  [ -n "${HOME:-}" ] || fail "HOME is required when --dest is not provided"
+  destination=$HOME/.local/bin
+}
 [ -n "$destination" ] || fail "destination must not be empty"
 case "$repository_url" in
   https://*) ;;

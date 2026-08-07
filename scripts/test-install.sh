@@ -136,6 +136,19 @@ run_installer() {
     /bin/sh "$installer" "$@"
 }
 
+run_installer_without_home() {
+  env -u HOME \
+    PATH="$fake_bin:$PATH" \
+    TMPDIR="$case_tmp" \
+    FIXTURE_DIR="$case_fixtures" \
+    FAKE_CURL_LOG="$case_log" \
+    AUTOREVIEW_INSTALL_REPOSITORY_URL=https://fixture.invalid \
+    TEST_UNAME_S="${TEST_UNAME_S:-Linux}" \
+    TEST_UNAME_M="${TEST_UNAME_M:-x86_64}" \
+    FAKE_CURL_MODE="${FAKE_CURL_MODE:-}" \
+    /bin/sh "$installer" "$@"
+}
+
 expect_failure() {
   local expected=$1
   shift
@@ -163,6 +176,15 @@ assert_no_residue() {
     exit 1
   fi
 }
+
+env -u HOME /bin/sh "$installer" --help >/dev/null
+
+new_case
+destination_without_home=$case_root/no-home-bin
+run_installer_without_home --dest "$destination_without_home" >/dev/null
+test "$("$destination_without_home/autoreview" --version)" = \
+  'autoreview v1.2.3 (fixture-amd64)'
+assert_no_residue
 
 new_case
 run_installer >/dev/null
