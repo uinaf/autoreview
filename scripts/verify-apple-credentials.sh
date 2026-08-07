@@ -55,6 +55,10 @@ security import "$certificate" \
   -k "$keychain" \
   -T /usr/bin/codesign >/dev/null ||
   fail "could not import Developer ID certificate"
+identities="$(security find-identity -p codesigning "$keychain")" ||
+  fail "could not inspect imported signing identities"
+grep -q '"Developer ID Application:' <<<"$identities" ||
+  fail "Developer ID Application certificate has no matching private key"
 if ! security find-certificate -c 'Developer ID Application' -p "$keychain" \
   >"$certificate_pem"; then
   fail "Developer ID Application certificate was not found after import"
