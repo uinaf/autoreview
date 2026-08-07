@@ -28,32 +28,28 @@ Runtime dependencies are Git 2.41 or newer, the `trufflehog` executable, and
 the selected review harness available on `PATH`. Multiple supported harnesses
 may be installed; `--engine` selects exactly one for each run.
 
-The [agent skill](skills/autoreview/SKILL.md) invokes the installed CLI. It does
-not bundle a second runtime.
-See [Releases](docs/RELEASES.md) for archive, checksum, Sigstore signature, and
-GitHub provenance verification.
-
 ## Quick use
 
 Inspect the effective configuration and its sources, then review dirty local
 changes:
 
 ```bash
+prompt="Review this completed change against its acceptance criteria."
 autoreview config --engine codex
 autoreview review --mode local --engine codex \
-  --prompt "Review this completed change against its acceptance criteria."
+  --prompt "$prompt"
 ```
 
-Select one target explicitly:
+Use `branch` for the complete merge-base-to-HEAD diff or `commit` for one
+non-merge commit:
 
 ```bash
-# Complete branch or checked-out pull-request diff
+prompt="Review this completed change against its acceptance criteria."
 autoreview review --mode branch --base origin/main --engine claude \
-  --prompt "$task_contract"
+  --prompt "$prompt"
 
-# One non-merge commit
 autoreview review --mode commit --commit HEAD --engine codex \
-  --prompt "$task_contract"
+  --prompt "$prompt"
 ```
 
 Autoreview never edits source, runs tests, commits, pushes, chooses a provider,
@@ -65,51 +61,32 @@ Use `--output json` for the versioned result contract. The JSON document is the
 only stdout value; progress and diagnostics use stderr.
 
 ```bash
+prompt="Review this completed change against its acceptance criteria."
 autoreview review --mode branch --base origin/main --engine codex \
-  --output json --prompt "$task_contract" > result.json
+  --output json --prompt "$prompt" > result.json
 ```
 
 Exit 0 means a valid clean review, exit 1 means valid findings, and exit 2 means
 no trustworthy review result.
 
-## Configuration and engines
+## Agent skill
 
-Configuration resolves flags, environment variables, repository
-`.autoreview.yaml`, account XDG config, then operational defaults. Native
-isolation preserves session-backed provider login while keeping the frozen
-bundle in an empty provider workspace, so it is the default. Web access remains
-off for Codex, Claude, and Grok; an explicit CLI `--engine cursor` enables it
-implicitly because Cursor Agent has no documented per-run web-disable control.
-Repository, environment, or XDG engine selection cannot grant web access. Select
-`strict` explicitly when a provider API key and hardened provider state are
-required.
+The bundled [agent skill](skills/autoreview/SKILL.md) delegates one independent
+review to the installed CLI. It does not contain a second runtime.
+
+## Documentation
 
 - [Configuration and isolation](docs/CONFIG.md)
 - [Review engines](docs/engines/README.md)
 - [Local, branch, and commit targets](docs/TARGETS.md)
 - [Versioned result and exit contract](docs/RESULT_SCHEMA.md)
-
-## Security
-
-Every frozen bundle, including deleted bytes and context files, is scanned by
-external TruffleHog in offline mode before provider invocation. Unsafe,
-incomplete, sensitive, oversized, or changed input fails closed. Report
-suspected vulnerabilities privately through the repository Security tab; see
-[Security](SECURITY.md).
-
-## Project status
-
-The CLI publishes signed macOS and Linux archives for amd64 and arm64 from
-verified `main` commits. Conventional Commits select the next CLI version, and
-the `uinaf/tap` Homebrew tap provides the prebuilt command.
-
-The [migration matrix](docs/MIGRATION.md) records the Python-to-Go decisions and
-their v0.1 evidence. This project succeeds the
-[original autoreview workflow](https://github.com/openclaw/agent-skills/tree/main/skills/autoreview),
-and its [MIT license](LICENSE) preserves the copyright notices for both
-`openclaw` and `uinaf`.
+- [Release artifacts and verification](docs/RELEASES.md)
 
 ## Contributing
 
 See [Contributing](CONTRIBUTING.md) for setup, release gates, and pull-request
 expectations.
+
+## License
+
+[MIT](LICENSE)

@@ -1,6 +1,6 @@
 ---
 name: autoreview
-description: "Runs one independent review of completed local changes, pull requests, branch diffs, or commits through the installed autoreview Go CLI using Codex, Claude, or Cursor; gathers authoritative acceptance criteria, selects or honors one provider, validates findings, applies scoped fixes, verifies and reruns accepted fixes, and safely reports reproducible CLI defects. Use when the user asks for an autoreview, a review of their code, pull request, or changes, an automated PR or second-model code review, a final tool-backed review, or review closeout after builder verification. Do not use as builder verification or a multi-reviewer panel."
+description: "Runs one independent review of completed local changes, pull requests, branch diffs, or commits through the installed autoreview Go CLI using Codex, Claude, Cursor, or Grok; gathers authoritative acceptance criteria, selects or honors one provider, validates findings, applies scoped fixes, verifies and reruns accepted fixes, and safely reports reproducible CLI defects. Use when the user asks for an autoreview, a review of their code, pull request, or changes, an automated PR or second-model code review, a final tool-backed review, or review closeout after builder verification. Do not use as builder verification or a multi-reviewer panel."
 ---
 
 # Autoreview
@@ -17,8 +17,21 @@ only; it never edits files, runs tests, commits, or pushes.
    presenting review as verification.
 3. Distill a short task contract: objective, acceptance criteria, explicit
    non-goals, and source identifiers. Pass it with `--prompt`.
-4. Require the installed dependencies. Do not invoke source-tree internals or
-   recreate the runtime in shell or Python.
+4. Require the installed dependencies. If `autoreview` is missing, stop and
+   offer the canonical install command for the host. Run it only with user
+   approval:
+
+   ```bash
+   # macOS: signed and notarized release
+   brew install --cask uinaf/tap/autoreview
+
+   # Linux or another Go-managed environment with Go 1.26+: latest tagged release
+   go install github.com/uinaf/autoreview/cmd/autoreview@latest
+   ```
+
+   Do not invoke source-tree internals, build an ad hoc replacement, or
+   recreate the runtime in shell or Python. Report any other missing dependency
+   instead of guessing how the user manages the host.
 
 ```bash
 command -v autoreview

@@ -54,13 +54,5 @@ mise run skill:review
 ## Releases
 
 Successful pushes to protected `main` evaluate Conventional Commits after the
-macOS/Linux verification and snapshot-package jobs pass. `fix`, `perf`, and
-`refactor` publish patches; `feat` publishes a minor; breaking changes publish
-a major; and docs, test, chore, build, and CI changes do not publish.
-
-The release job creates no version-bump commit. It mints a short-lived
-`uinaf-releaser` token inside the `release` Environment, creates the tag and
-GitHub Release, validates Apple signing credentials supplied by that protected
-Environment, signs and notarizes the macOS binaries, signs and attests all
-artifacts, and updates the Homebrew tap. See [Releases](docs/RELEASES.md) for
-the complete contract and recovery path.
+verification and snapshot jobs pass. See [Releases](docs/RELEASES.md) for
+version selection, artifact signing, publication, and recovery.

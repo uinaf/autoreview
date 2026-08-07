@@ -1,6 +1,6 @@
 {
   "name": "uinaf/autoreview",
-  "description": "Runs one independent review of completed local changes, pull requests, branch diffs, or commits through the installed autoreview Go CLI using Codex, Claude, or Cursor; gathers authoritative acceptance criteria, selects or honors one provider, validates findings, applies scoped fixes, verifies and reruns accepted fixes, and safely reports reproducible CLI defects. Use when the user asks for an autoreview, a review of their code, pull request, or changes, an automated PR or second-model code review, a final tool-backed review, or review closeout after builder verification. Do not use as builder verification or a multi-reviewer panel.",
+  "description": "Runs one independent review of completed local changes, pull requests, branch diffs, or commits through the installed autoreview Go CLI using Codex, Claude, Cursor, or Grok; gathers authoritative acceptance criteria, selects or honors one provider, validates findings, applies scoped fixes, verifies and reruns accepted fixes, and safely reports reproducible CLI defects. Use when the user asks for an autoreview, a review of their code, pull request, or changes, an automated PR or second-model code review, a final tool-backed review, or review closeout after builder verification. Do not use as builder verification or a multi-reviewer panel.",
   "skills": [
     "."
   ],
