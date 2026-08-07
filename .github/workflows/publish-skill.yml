@@ -1,0 +1,66 @@
+name: Publish skill
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "skills/autoreview/**"
+      - "cmd/autoreview/skill_package_test.go"
+      - "mise.toml"
+      - "scripts/test-skill-release.sh"
+      - "scripts/verify-published-skill.sh"
+      - ".github/workflows/publish-skill.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish skill
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: skill-release
+      deployment: false
+    concurrency:
+      group: publish-skill-${{ github.repository }}-main
+      cancel-in-progress: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up toolchain
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          cache: true
+
+      - name: Set up Tessl
+        uses: tesslio/setup-tessl@33e1c9253e3673f28e1b8949475b250dbd57918e # v2
+        with:
+          version: "0.94.0"
+          token: ${{ secrets.TESSL_TOKEN }}
+
+      - name: Validate package contract
+        run: mise run skill:package
+
+      - name: Publish manifest version
+        id: publish
+        uses: uinaf/tessl-publish-action@20580b9b8ecdb6d958ba583e37078541128aeb76 # v2.3.0
+        with:
+          review-threshold: "100"
+          publish-all: "true"
+          version-strategy: manifest
+          commit-version-bumps: "false"
+
+      - name: Verify published package
+        env:
+          PUBLISHED_VERSIONS: ${{ steps.publish.outputs.versions }}
+        run: |
+          version=$(jq -er '."skills/autoreview"' <<< "$PUBLISHED_VERSIONS")
+          ./scripts/verify-published-skill.sh "$version"

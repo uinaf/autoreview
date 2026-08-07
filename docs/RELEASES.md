@@ -92,3 +92,20 @@ CLI SemVer describes the Go executable contract. Tessl skill SemVer describes
 the independently published agent package and may advance without changing the
 CLI version. The skill documents its compatible CLI requirement; the two
 version numbers are not required to match.
+
+## Skill publication
+
+Changes under `skills/autoreview` publish only after they merge to protected
+`main`. The dedicated `skill-release` Environment exposes a Tessl API key with
+the workspace-scoped `publisher` role; pull-request jobs remain secretless.
+The publisher runs the deterministic package contract, then the pinned
+`uinaf/tessl-publish-action` runs the 100-point Tessl review and publishes the
+explicit version from `plugin.json` without mutating the repository.
+
+Publication is immutable and rerunnable. If the declared version already
+exists, the workflow does not replace it. Instead, it installs that exact
+version into a clean temporary Codex project and byte-compares every shipped
+source file plus generated package metadata. Matching content completes a
+retry; mismatched content fails and requires a new skill version. A successful
+new publication must pass the same clean-install comparison before the workflow
+completes.
