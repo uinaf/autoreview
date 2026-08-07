@@ -51,12 +51,11 @@ if [ "$pending_count" -lt "$pending_failures" ]; then
 fi
 
 installed=.tessl/plugins/uinaf/autoreview
-mkdir -p "$installed/.tessl-plugin" "$installed/agents" "$installed/references" \
+mkdir -p "$installed/.tessl-plugin" "$installed/references" \
   .agents/skills .codex/skills
 cp "$FAKE_TESSL_SOURCE/.tessl-plugin/plugin.json" \
   "$installed/.tessl-plugin/plugin.json"
 cp "$FAKE_TESSL_SOURCE/SKILL.md" "$installed/SKILL.md"
-cp "$FAKE_TESSL_SOURCE/agents/openai.yaml" "$installed/agents/openai.yaml"
 cp "$FAKE_TESSL_SOURCE/references/"*.md "$installed/references/"
 name=$(jq -r .name "$FAKE_TESSL_SOURCE/.tessl-plugin/plugin.json")
 version=$(jq -r .version "$FAKE_TESSL_SOURCE/.tessl-plugin/plugin.json")
@@ -101,6 +100,5 @@ assert_stale_rejected() {
 }
 
 assert_stale_rejected SKILL.md
-assert_stale_rejected agents/openai.yaml
 
 printf 'skill release tests passed\n'
