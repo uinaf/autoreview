@@ -124,10 +124,8 @@ description = "Validate skill publication automation"
 depends = ["skill:publish:test"]
 run = '''
 set -e
-bash -n scripts/publish-skill.sh
 bash -n scripts/test-skill-release.sh
 bash -n scripts/verify-published-skill.sh
-shellcheck -s bash scripts/publish-skill.sh
 shellcheck -s bash scripts/test-skill-release.sh
 shellcheck -s bash scripts/verify-published-skill.sh
 actionlint .github/workflows/publish-skill.yml

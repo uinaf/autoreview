@@ -8,7 +8,6 @@ on:
       - "skills/autoreview/**"
       - "cmd/autoreview/skill_package_test.go"
       - "mise.toml"
-      - "scripts/publish-skill.sh"
       - "scripts/test-skill-release.sh"
       - "scripts/verify-published-skill.sh"
       - ".github/workflows/publish-skill.yml"
@@ -47,7 +46,21 @@ jobs:
           version: "0.94.0"
           token: ${{ secrets.TESSL_TOKEN }}
 
-      - name: Publish and verify skill
+      - name: Validate package contract
+        run: mise run skill:package
+
+      - name: Publish manifest version
+        id: publish
+        uses: uinaf/tessl-publish-action@20580b9b8ecdb6d958ba583e37078541128aeb76 # v2.3.0
+        with:
+          review-threshold: "100"
+          publish-all: "true"
+          version-strategy: manifest
+          commit-version-bumps: "false"
+
+      - name: Verify published package
         env:
-          TESSL_WORKSPACE: uinaf
-        run: ./scripts/publish-skill.sh
+          PUBLISHED_VERSIONS: ${{ steps.publish.outputs.versions }}
+        run: |
+          version=$(jq -er '."skills/autoreview"' <<< "$PUBLISHED_VERSIONS")
+          ./scripts/verify-published-skill.sh "$version"

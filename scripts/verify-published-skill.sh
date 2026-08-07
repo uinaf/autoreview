@@ -87,7 +87,7 @@ for agent_skill in \
   "$verification_root/.codex/skills/tessl__autoreview"; do
   if [ ! -f "$agent_skill/SKILL.md" ] || \
       ! cmp -s "$skill_directory/SKILL.md" "$agent_skill/SKILL.md"; then
-    printf 'installed Codex discovery surface differs: %s\n' "$agent_skill" >&2
+    printf 'installed agent discovery surface differs: %s\n' "$agent_skill" >&2
     exit 1
   fi
 done
