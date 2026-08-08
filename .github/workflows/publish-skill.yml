@@ -50,7 +50,7 @@ jobs:
 
       - name: Publish manifest version
         id: publish
-        uses: uinaf/tessl-publish-action@cd00bf26badf074e491b65eb3ff3317355122d86 # v2.3.0
+        uses: uinaf/tessl-publish-action@fe80775c176da0a796e78948a0b1879caf1c82fa # v2.4.0
         with:
           review-mode: lint
           publish-all: "true"
