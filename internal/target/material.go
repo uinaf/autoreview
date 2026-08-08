@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/uinaf/autoreview/internal/protocol"
@@ -182,8 +183,26 @@ func (collector *Collector) newGitSandbox(ctx context.Context, root string) (_ *
 	if err := os.WriteFile(filepath.Join(directory, "HEAD"), []byte("ref: refs/heads/autoreview\n"), 0o600); err != nil {
 		return nil, fmt.Errorf("initialize isolated Git HEAD: %w", err)
 	}
-	if err := copyStableFile(filepath.Dir(originalIndex), filepath.Base(originalIndex), filepath.Join(directory, "index"), maximumIndexBytes); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("copy Git index: %w", err)
+	// Preserve the original index mtime. A naive copy advances the file's
+	// timestamp and closes Git's racy-git window, which can hide same-size
+	// worktree edits (including symlink retargets) on the verification collect.
+	var indexModTime time.Time
+	var hasIndex bool
+	if info, statErr := os.Stat(originalIndex); statErr == nil {
+		indexModTime = info.ModTime()
+		hasIndex = true
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return nil, fmt.Errorf("inspect Git index: %w", statErr)
+	}
+	copiedIndex := filepath.Join(directory, "index")
+	if err := copyStableFile(filepath.Dir(originalIndex), filepath.Base(originalIndex), copiedIndex, maximumIndexBytes); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("copy Git index: %w", err)
+		}
+	} else if hasIndex {
+		if err := os.Chtimes(copiedIndex, indexModTime, indexModTime); err != nil {
+			return nil, fmt.Errorf("preserve Git index mtime: %w", err)
+		}
 	}
 	excludeRoot := filepath.Dir(filepath.Dir(originalExclude))
 	excludeRelative, err := filepath.Rel(excludeRoot, originalExclude)

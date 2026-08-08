@@ -12,7 +12,8 @@ Revision input is never auto-detected, fetched from GitHub, or interpreted as a
 command option. Git runs through fixed argument arrays with hooks, filters,
 credentials, global configuration, external diffs, text conversion, and
 filesystem monitors disabled where applicable. Content-producing commands use
-an isolated temporary Git directory, copied index, empty attribute source, and
+an isolated temporary Git directory, a copied index that preserves the original
+index mtime (so Git's racy-git checks stay valid), empty attribute source, and
 read-only access to the repository object database; repository config and
 `info/attributes` therefore cannot select executable filters. Merge bases and
 commit parents are resolved in that same raw object view, without replacement,
