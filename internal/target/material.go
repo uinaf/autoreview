@@ -195,10 +195,11 @@ func (collector *Collector) newGitSandbox(ctx context.Context, root string) (_ *
 		return nil, fmt.Errorf("inspect Git index: %w", statErr)
 	}
 	copiedIndex := filepath.Join(directory, "index")
-	if err := copyStableFile(filepath.Dir(originalIndex), filepath.Base(originalIndex), copiedIndex, maximumIndexBytes); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("copy Git index: %w", err)
-	}
-	if hasIndex {
+	if err := copyStableFile(filepath.Dir(originalIndex), filepath.Base(originalIndex), copiedIndex, maximumIndexBytes); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("copy Git index: %w", err)
+		}
+	} else if hasIndex {
 		if err := os.Chtimes(copiedIndex, indexModTime, indexModTime); err != nil {
 			return nil, fmt.Errorf("preserve Git index mtime: %w", err)
 		}
