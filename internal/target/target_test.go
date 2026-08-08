@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/uinaf/autoreview/internal/protocol"
@@ -210,6 +211,10 @@ func TestFreezeIncludesTrackedSymlinks(t *testing.T) {
 		if err := os.Symlink("target-b.txt", filepath.Join(repository, "alias")); err != nil {
 			t.Fatal(err)
 		}
+		// Cross the index mtime second so a sandbox index copy that forgot to
+		// preserve mtime would close Git's racy-git window and miss this
+		// same-size symlink retarget on the verification collect.
+		waitPastIndexSecond(t, repository)
 
 		bundle, err := newCollector(t, &recordingScanner{}).Freeze(context.Background(), repository, Request{Mode: protocol.TargetLocal})
 		if err != nil {
@@ -222,6 +227,41 @@ func TestFreezeIncludesTrackedSymlinks(t *testing.T) {
 			t.Fatal("frozen payload omitted symlink target")
 		}
 	})
+}
+
+func TestGitSandboxPreservesIndexModTime(t *testing.T) {
+	t.Parallel()
+
+	repository := committedRepository(t)
+	indexPath := gitCommand(t, repository, "rev-parse", "--path-format=absolute", "--git-path", "index")
+	before, err := os.Stat(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitPastIndexSecond(t, repository)
+
+	collector := newCollector(t, &recordingScanner{})
+	prepared, err := collector.forRepository(context.Background(), repository)
+	if err != nil {
+		t.Fatalf("forRepository() error = %v", err)
+	}
+	root, err := prepared.repositoryRoot(context.Background(), repository)
+	if err != nil {
+		t.Fatalf("repositoryRoot() error = %v", err)
+	}
+	sandbox, err := prepared.newGitSandbox(context.Background(), root)
+	if err != nil {
+		t.Fatalf("newGitSandbox() error = %v", err)
+	}
+	defer func() { _ = sandbox.Close() }()
+
+	copied, err := os.Stat(filepath.Join(sandbox.directory, "index"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !copied.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("sandbox index mtime = %v, want preserved %v", copied.ModTime(), before.ModTime())
+	}
 }
 
 func TestFreezeRejectsGitlink(t *testing.T) {
@@ -1246,6 +1286,19 @@ func committedRepository(t *testing.T) string {
 	gitCommand(t, repository, "add", ".")
 	gitCommand(t, repository, "commit", "-m", "base")
 	return repository
+}
+
+func waitPastIndexSecond(t *testing.T, repository string) {
+	t.Helper()
+	indexPath := gitCommand(t, repository, "rev-parse", "--path-format=absolute", "--git-path", "index")
+	info, err := os.Stat(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := info.ModTime().Truncate(time.Second).Add(2 * time.Second)
+	if wait := time.Until(deadline); wait > 0 {
+		time.Sleep(wait)
+	}
 }
 
 func gitCommand(t *testing.T, repository string, arguments ...string) string {
