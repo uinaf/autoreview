@@ -40,7 +40,7 @@ For command-surface changes, also exercise the built binary directly.
 For skill changes, run the pinned hosted quality gate:
 
 ```bash
-mise run skill:review
+mise run skill:lint
 ```
 
 ## Pull Requests

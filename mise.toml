@@ -171,11 +171,19 @@ test -n "$native_binary"
 "$native_binary" --version | grep -E '^autoreview v[0-9]+\.[0-9]+\.[0-9]+-snapshot-[0-9a-f]+ \([0-9a-f]{40}\)$'
 '''
 
-[tasks."skill:review"]
-description = "Review the skill at the pinned Tessl quality threshold"
+[tasks."skill:lint"]
+description = "Free Tessl plugin lint for the skill package"
 run = '''
 set -e
 test "$(tessl --version)" = "0.94.0"
-TESSL_AUTO_UPDATE_INTERVAL_MINUTES=0 tessl skill lint skills/autoreview
+TESSL_AUTO_UPDATE_INTERVAL_MINUTES=0 tessl plugin lint skills/autoreview
+'''
+
+[tasks."skill:review"]
+description = "Optional credit-burning Tessl cloud review at threshold 100"
+run = '''
+set -e
+test "$(tessl --version)" = "0.94.0"
+TESSL_AUTO_UPDATE_INTERVAL_MINUTES=0 tessl plugin lint skills/autoreview
 TESSL_AUTO_UPDATE_INTERVAL_MINUTES=0 tessl review run --workspace uinaf --force --threshold 100 --label autoreview-2.1.1-tessl-0.94.0 skills/autoreview
 '''

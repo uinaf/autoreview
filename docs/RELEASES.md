@@ -99,7 +99,7 @@ Changes under `skills/autoreview` publish only after they merge to protected
 `main`. The dedicated `skill-release` Environment exposes a Tessl API key with
 the workspace-scoped `publisher` role; pull-request jobs remain secretless.
 The publisher runs the deterministic package contract, then the pinned
-`uinaf/tessl-publish-action` runs the 100-point Tessl review and publishes the
+`uinaf/tessl-publish-action` runs free Tessl plugin lint (default) and publishes the
 explicit version from `plugin.json` without mutating the repository.
 
 Publication is immutable and rerunnable. If the declared version already
